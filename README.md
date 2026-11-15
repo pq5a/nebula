@@ -37,10 +37,10 @@ run this in PowerShell from the folder with the download:
 Get-FileHash .\Nebula.exe -Algorithm SHA256
 ```
 
-The hash must match the one listed for that release. v0.3.0 `Nebula.exe`:
+The hash must match the one listed for that release. v0.4.0 `Nebula.exe`:
 
 ```
-320e7c9daa59dd78774889505cd38cb9e37d4990cc9378482c18e4c25a3f82f8
+7a212cedf67e86a7b950e6e134707a237caedd61f508034c7ead8619b0f17811
 ```
 
 ## Behaviour
@@ -71,6 +71,12 @@ The hash must match the one listed for that release. v0.3.0 `Nebula.exe`:
     and the brand accent. Lightness is kept from Discord's palette, and light text is
     lifted to at least 4.5:1 contrast against the surfaces. Red, green and yellow are
     unchanged.
+  - **Make your own:** pick a background and an accent colour. The preview updates
+    the whole client as you pick. **Save theme** keeps the pair as a custom theme,
+    which then appears in the theme list. The background is kept dark (lighter picks
+    are darkened to a dark shade of the same hue), and the accent's lightness is kept
+    within a range that reads on dark surfaces. Closing the menu without saving goes back to the saved
+    theme.
   - **Power:** "Slow to 10 FPS when tabbed out", on by default. While the Nebula
     window is hidden or not focused, animation frames run 10 times a second instead of
     at the display rate, which cuts background CPU and GPU use. Turn it off to keep
@@ -86,8 +92,9 @@ The hash must match the one listed for that release. v0.3.0 `Nebula.exe`:
   DPAPI so only your Windows user can read them. Passwords are never sent back to
   the page. Anyone with access to your Windows account can decrypt them, so only
   save accounts you control.
-- The chosen theme is saved to `%APPDATA%\Nebula\theme.txt`. The webview has no
-  localStorage, so the file is read at startup and injected before the page loads.
+- The chosen theme is saved to `%APPDATA%\Nebula\theme.txt`. The custom theme's two
+  colors are saved to `%APPDATA%\Nebula\custom-theme.txt`. The webview has no
+  localStorage, so both files are read at startup and injected before the page loads.
   The window and webview use the theme's background color until Discord paints, so
   startup never shows a white screen.
 - The client recolors only when Discord's theme class actually changes or a new
@@ -111,7 +118,8 @@ The build does not download anything.
 - `src/main.rs` — window, webview setup, navigation rules, Firefox handoff.
 - `src/vencord.rs` — Vencord download, digest verification, cache, and page script.
 - `src/accounts.rs` — saved accounts, DPAPI encryption, and account requests from the page.
-- `src/chrome.js` — title bar, settings menu (themes and low-power mode), account dropdown, theme recoloring and the 10 FPS background throttle (injected).
+- `src/themes.rs` — saved theme and custom colors, validation, and the window background color.
+- `src/chrome.js` — title bar, settings menu (themes, custom theme and low-power mode), account dropdown, theme recoloring and the 10 FPS background throttle (injected).
 - `build.rs` — embeds the Windows icon.
 - `vendor/` — third-party Vencord files (fallback copy).
 - `assets/icon.ico`, `Logo.png` — application icon and logo.
