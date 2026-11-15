@@ -427,27 +427,6 @@
     targets.forEach(function (el) { io.observe(el); });
   })();
 
-  // Download button: saves the latest Nebula.zip from the GitHub release.
-  (function () {
-    var btn = document.getElementById("download");
-    var label = document.getElementById("btn-text");
-    btn.addEventListener("click", function () {
-      if (btn.classList.contains("busy")) return;
-      btn.classList.add("busy");
-      label.textContent = "Starting download…";
-      var a = document.createElement("a");
-      a.href = "https://github.com/pq5a/nebula/releases/latest/download/Nebula.zip";
-      a.download = "Nebula.zip";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(function () {
-        btn.classList.remove("busy");
-        btn.classList.add("done");
-        label.textContent = "Download started";
-      }, 1200);
-    });
-  })();
 </script>
 </body>
 </html>
