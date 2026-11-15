@@ -22,11 +22,17 @@
     { id: "graphite", name: "Graphite", blurb: "Neutral grey, no colour cast", bg: "#0b0c0f", panel: "#16181d", accent: "#94a3b8", text: "#e2e8f0", muted: "#7b8594", hue: 215, tint: 8, accentHue: 215 }
   ];
 
-  // Built from THEMES so the menu, the page styles and the palette never drift apart.
-  var THEME_CSS = THEMES.map(function (t) {
+  // The colours of Nebula's own window chrome for one theme.
+  function themeRule(t) {
     return '[data-nb-theme="' + t.id + '"] { --nb-bg:' + t.bg + "; --nb-panel:" + t.panel + "; --nb-accent:" + t.accent +
       "; --nb-text:" + t.text + "; --nb-muted:" + t.muted + "; --nb-glow:" + t.accent + '59; }';
-  });
+  }
+  // Built from THEMES so the menu, the page styles and the palette never drift apart.
+  var THEME_CSS = THEMES.map(themeRule);
+
+  // The custom theme is made from two colours the user picks (see makeCustomTheme).
+  // Rust saves them and passes them in as {bg, accent}, or null if there is none.
+  var savedCustom = window.__nebulaCustom || null;
 
   var STYLE = [
     ":root { --nb-bg:#0d0a1f; --nb-panel:#15112e; --nb-accent:#a78bfa; --nb-text:#ede9ff; --nb-muted:#8b82b5; --nb-glow:#a78bfa59; }"
@@ -46,7 +52,14 @@
     "html body #app-mount { padding-top:36px !important; box-sizing:border-box !important; }",
     "@keyframes nb-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }",
     "#nb-menu, #nb-accounts { position:fixed; top:40px; z-index:2147483646; display:none; flex-direction:column; background:var(--nb-panel); color:var(--nb-text); border-radius:12px; border:1px solid var(--nb-glow); box-shadow:0 12px 32px rgba(0,0,0,.5); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; overflow:hidden; }",
-    "#nb-menu { left:8px; width:264px; }",
+    "#nb-menu { left:8px; width:264px; max-height:calc(100vh - 56px); overflow-y:auto; scrollbar-width:thin; }",
+    "#nb-menu .nb-m-custom { display:flex; align-items:center; gap:8px; padding:4px 14px 2px; }",
+    "#nb-menu .nb-pick { display:flex; align-items:center; gap:6px; color:var(--nb-muted); font-size:12px; }",
+    "#nb-menu .nb-color { appearance:none; -webkit-appearance:none; width:30px; height:24px; padding:0; margin:0; border:1px solid rgba(255,255,255,.16); border-radius:7px; background:none; cursor:pointer; }",
+    "#nb-menu .nb-color::-webkit-color-swatch-wrapper { padding:2px; }",
+    "#nb-menu .nb-color::-webkit-color-swatch { border:0; border-radius:5px; }",
+    "#nb-menu .nb-save { all:unset; cursor:pointer; margin-left:auto; padding:6px 12px; border-radius:8px; background:var(--nb-accent); color:#0b0716; font-weight:700; font-size:12px; }",
+    "#nb-menu .nb-save:hover { filter:brightness(1.1); }",
     "#nb-accounts { right:8px; width:280px; }",
     "#nb-menu.open, #nb-accounts.open { display:flex; animation:nb-in .12s ease-out; }",
     "#nb-menu .nb-m-head, #nb-accounts .nb-acc-head { padding:12px 14px 6px; font-weight:700; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--nb-muted); }",
@@ -146,6 +159,52 @@
     return [h, s * 100, l * 100];
   }
 
+  // Hex colors are always "#rrggbb" in lower case, as <input type="color"> gives them.
+  function hexToRgb(hex) {
+    return [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)];
+  }
+  function hexHsl(hex) {
+    var c = hexToRgb(hex);
+    return rgbToHsl(c[0], c[1], c[2]);
+  }
+  function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    var a = s * Math.min(l, 1 - l);
+    var f = function (n) {
+      var k = (n + h / 30) % 12;
+      return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    };
+    return "#" + [f(0), f(8), f(4)].map(function (x) {
+      var v = Math.max(0, Math.min(255, Math.round(x * 255)));
+      return (v < 16 ? "0" : "") + v.toString(16);
+    }).join("");
+  }
+
+  // Builds a full theme from the background and accent the user picked. The
+  // background is kept dark, because Discord's text is light. The accent is kept
+  // light enough to read on dark surfaces. Colors already in range are returned
+  // unchanged, so a saved theme rebuilds to exactly the same colors.
+  function makeCustomTheme(bgHex, accentHex) {
+    var b = hexHsl(bgHex);
+    if (b[2] > 20) {
+      bgHex = hslToHex(b[0], b[1], 20);
+      b = hexHsl(bgHex);
+    }
+    var a = hexHsl(accentHex);
+    if (a[2] < 45 || a[2] > 90) {
+      accentHex = hslToHex(a[0], a[1], Math.min(90, Math.max(45, a[2])));
+      a = hexHsl(accentHex);
+    }
+    var hue = b[0], tint = Math.min(b[1], 60);
+    return {
+      id: "custom", name: "Custom", blurb: "Your two colours",
+      bg: bgHex, panel: hslToHex(hue, tint, Math.min(b[2] + 4, 25)), accent: accentHex,
+      text: hslToHex(hue, Math.min(tint, 35), 93), muted: hslToHex(hue, Math.min(tint, 25), 68),
+      // A grey accent has no hue of its own, so it takes the background's hue.
+      hue: hue, tint: tint, accentHue: a[1] >= 8 ? a[0] : hue
+    };
+  }
+
   // Discord uses color-mix(in oklab, ...), which canvas reports in oklab form.
   function oklabToRgb(L, a, b) {
     var l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
@@ -194,8 +253,15 @@
   // Variable -> { want, shown }: the value we set, and the value the browser stored.
   var applied = {};
   var root = null;
+  // The <style> that holds the custom theme's --nb-* rule. Rewritten on each change.
+  var customStyle = null;
+  // Looks up a theme by id. Built-in ids come from THEMES. An unknown id falls back to the first theme.
+  function themeById(id) {
+    if (id === "custom" && savedCustom) return makeCustomTheme(savedCustom.bg, savedCustom.accent);
+    return THEMES.filter(function (t) { return t.id === id; })[0] || THEMES[0];
+  }
   // Set by Rust from the saved choice: the webview has no localStorage.
-  var current = THEMES.filter(function (t) { return t.id === window.__nebulaTheme; })[0] || THEMES[0];
+  var current = themeById(window.__nebulaTheme);
 
   // Recolors Discord's variables for `theme`. With `fresh`, Discord's palette
   // may have changed, so our overrides are removed first and the originals
@@ -211,7 +277,11 @@
       // writes would force a full restyle on every access.
       var cs = getComputedStyle(root);
       names = [];
-      for (var i = 0; i < cs.length; i++) if (cs[i].indexOf("--") === 0) names.push(cs[i]);
+      // Nebula's own --nb-* variables are skipped: this pass must not recolour them,
+      // or the window chrome would keep the colors it had when the page first loaded.
+      for (var i = 0; i < cs.length; i++) {
+        if (cs[i].indexOf("--") === 0 && cs[i].indexOf("--nb-") !== 0) names.push(cs[i]);
+      }
       names.forEach(function (name) { originals[name] = parseColor(cs.getPropertyValue(name)); });
     } else {
       // The variable names are already known, so skip the computed-style walk.
@@ -244,22 +314,17 @@
     applied = next;
   }
 
-  // Coalesces bursts of Discord DOM changes into one update per frame.
-  var scheduled = 0;
-  var scheduledFresh = false;
+  // Applies the palette now. It runs inside a DOM observer callback, which is a
+  // microtask and so finishes before the browser paints. Discord's colors are
+  // therefore never shown without Nebula's overrides, and a theme change never
+  // waits a frame. (A requestAnimationFrame here would show a stale or unthemed
+  // frame, and would also lag while the window is in low-power mode.)
   var styleObserver = null;
-  function schedule(fresh) {
-    scheduledFresh = scheduledFresh || fresh;
-    if (scheduled) return;
-    scheduled = requestAnimationFrame(function () {
-      var freshNow = scheduledFresh;
-      scheduled = 0;
-      scheduledFresh = false;
-      retheme(current, freshNow);
-      // Our own writes to the root's inline style would otherwise queue
-      // another pass, and each pass writes again. Drop those records.
-      if (styleObserver) styleObserver.takeRecords();
-    });
+  function reapply(fresh) {
+    retheme(current, fresh);
+    // Our own writes to the root's inline style would queue another pass, and
+    // each pass writes again. Those records are not needed, so drop them.
+    if (styleObserver) styleObserver.takeRecords();
   }
 
   // Relative luminance (WCAG) of an HSL color.
@@ -284,22 +349,13 @@
   var menu = null;
   var accountsPanel = null;
 
-  function markActive() {
-    if (!menu) return;
-    menu.querySelectorAll(".nb-opt").forEach(function (opt) {
-      var on = opt.dataset.id === current.id;
-      opt.classList.toggle("active", on);
-      opt.setAttribute("aria-checked", String(on));
-    });
-  }
-
-  function applyTheme(theme, save) {
-    current = theme;
-    root.setAttribute("data-nb-theme", theme.id);
-    if (save) send("theme:" + theme.id);
-    retheme(theme, false);
-    markActive();
-  }
+  // The theme Rust has saved (the one used on the next launch), and whether the
+  // menu is showing an unsaved colour preview of a custom theme.
+  var savedId = window.__nebulaTheme;
+  var previewing = false;
+  var listBox = null;
+  var pickBg = null;
+  var pickAccent = null;
 
   function el(tag, cls) {
     var node = document.createElement(tag);
@@ -307,34 +363,126 @@
     return node;
   }
 
+  function markActive() {
+    if (!listBox) return;
+    listBox.querySelectorAll(".nb-opt").forEach(function (opt) {
+      var on = opt.dataset.id === current.id;
+      opt.classList.toggle("active", on);
+      opt.setAttribute("aria-checked", String(on));
+    });
+  }
+
+  // Sets the page's theme. With `save`, Rust keeps it for the next launch.
+  function applyTheme(theme, save) {
+    current = theme;
+    if (theme.id === "custom") customStyle.textContent = themeRule(theme);
+    root.setAttribute("data-nb-theme", theme.id);
+    if (save) {
+      savedId = theme.id;
+      send("theme:" + theme.id);
+    }
+    reapply(false);
+    markActive();
+  }
+
+  // Rebuilds the theme list. The custom entry is listed once a custom theme is saved.
+  function renderOptions() {
+    var list = THEMES.slice();
+    if (savedCustom) list.push(themeById("custom"));
+    listBox.textContent = "";
+    list.forEach(function (t) {
+      var opt = el("button", "nb-opt");
+      opt.setAttribute("role", "menuitemradio");
+      opt.dataset.id = t.id;
+      opt.style.setProperty("--sw-bg", t.bg);
+      opt.style.setProperty("--sw-accent", t.accent);
+      var swatch = el("span", "nb-swatch");
+      var text = el("span", "nb-opt-text");
+      var name = el("span", "nb-opt-name");
+      name.textContent = t.name;
+      var blurb = el("span", "nb-opt-blurb");
+      blurb.textContent = t.blurb;
+      var tick = el("span", "nb-tick");
+      tick.innerHTML = "&#10003;";
+      text.appendChild(name);
+      text.appendChild(blurb);
+      opt.appendChild(swatch);
+      opt.appendChild(text);
+      opt.appendChild(tick);
+      listBox.appendChild(opt);
+    });
+    markActive();
+  }
+
+  // The pickers show the saved custom colors, or the saved theme's colors if there are none.
+  function syncPickers() {
+    var c = savedCustom || themeById(savedId);
+    pickBg.value = c.bg;
+    pickAccent.value = c.accent;
+  }
+
+  // Shows the picked colors on the page without saving them.
+  function previewPicks() {
+    previewing = true;
+    applyTheme(makeCustomTheme(pickBg.value, pickAccent.value), false);
+  }
+
+  // Drops an unsaved preview and goes back to the saved theme.
+  function revertPreview() {
+    if (!previewing) return;
+    previewing = false;
+    applyTheme(themeById(savedId), false);
+    syncPickers();
+  }
+
+  function saveCustom() {
+    var t = makeCustomTheme(pickBg.value, pickAccent.value);
+    savedCustom = { bg: t.bg, accent: t.accent };
+    previewing = false;
+    // Rust writes the colors first, so the theme it is then asked to use exists.
+    send("custom:" + JSON.stringify(savedCustom));
+    applyTheme(t, true);
+    renderOptions();
+    syncPickers();
+  }
+
   function buildMenu() {
     var panel = el("div", "");
     panel.id = "nb-menu";
     panel.setAttribute("role", "menu");
-    var options = THEMES.map(function (t) {
-      return '<button class="nb-opt" role="menuitemradio" data-id="' + t.id + '" style="--sw-bg:' + t.bg +
-        ";--sw-accent:" + t.accent + '"><span class="nb-swatch"></span><span class="nb-opt-text">' +
-        '<span class="nb-opt-name">' + t.name + '</span><span class="nb-opt-blurb">' + t.blurb + "</span></span>" +
-        '<span class="nb-tick">&#10003;</span></button>';
-    }).join("");
     panel.innerHTML =
-      '<div class="nb-m-head">Theme</div><div class="nb-m-list">' + options + "</div>" +
+      '<div class="nb-m-head">Theme</div><div class="nb-m-list"></div>' +
+      '<div class="nb-m-sep"></div><div class="nb-m-head">Make your own</div>' +
+      '<div class="nb-m-custom">' +
+      '<label class="nb-pick"><input class="nb-color nb-c-bg" type="color" title="Background">Background</label>' +
+      '<label class="nb-pick"><input class="nb-color nb-c-accent" type="color" title="Accent">Accent</label>' +
+      '<button class="nb-save" type="button">Save theme</button></div>' +
+      '<p class="nb-m-hint">Pick two colours to preview them. Save keeps them.</p>' +
       '<div class="nb-m-sep"></div><div class="nb-m-head">Power</div>' +
       '<label class="nb-m-row"><span>Slow to 10 FPS when tabbed out</span>' +
       '<input class="nb-toggle" type="checkbox" role="switch"' + (throttleOn ? " checked" : "") + "></label>" +
       '<p class="nb-m-hint">Saves CPU and GPU while Nebula is in the background.</p>';
     document.body.appendChild(panel);
 
+    listBox = panel.querySelector(".nb-m-list");
+    pickBg = panel.querySelector(".nb-c-bg");
+    pickAccent = panel.querySelector(".nb-c-accent");
+    renderOptions();
+    syncPickers();
+
     panel.addEventListener("click", function (e) {
       var opt = e.target.closest(".nb-opt");
       if (!opt) return;
-      applyTheme(THEMES.filter(function (t) { return t.id === opt.dataset.id; })[0], true);
+      previewing = false;
+      applyTheme(themeById(opt.dataset.id), true);
     });
+    pickBg.addEventListener("input", previewPicks);
+    pickAccent.addEventListener("input", previewPicks);
+    panel.querySelector(".nb-save").addEventListener("click", saveCustom);
     panel.querySelector(".nb-toggle").addEventListener("change", function (e) {
       throttleOn = e.target.checked;
       send("throttle:" + (throttleOn ? "on" : "off"));
     });
-    markActive();
     return panel;
   }
 
@@ -493,15 +641,16 @@
   // Opening and closing the two dropdowns.
   function closeMenu() {
     if (!menu) return;
+    revertPreview();
     menu.classList.remove("open");
     var btn = document.querySelector("#nb-titlebar .nb-settings");
     if (btn) btn.setAttribute("aria-expanded", "false");
   }
   function toggleMenu() {
-    var open = !menu.classList.contains("open");
-    if (open) accountsPanel.close();
-    menu.classList.toggle("open", open);
-    document.querySelector("#nb-titlebar .nb-settings").setAttribute("aria-expanded", String(open));
+    if (menu.classList.contains("open")) return closeMenu();
+    accountsPanel.close();
+    menu.classList.add("open");
+    document.querySelector("#nb-titlebar .nb-settings").setAttribute("aria-expanded", "true");
   }
 
   function buildTitlebar() {
@@ -551,13 +700,18 @@
     style.id = "nb-chrome-css";
     style.textContent = STYLE;
     document.head.appendChild(style);
+    // Created before the observers below, so writing to it never looks like a Discord change.
+    customStyle = document.createElement("style");
+    customStyle.id = "nb-custom-css";
+    if (current.id === "custom") customStyle.textContent = themeRule(current);
+    document.head.appendChild(customStyle);
 
     menu = buildMenu();
     accountsPanel = buildAccounts();
     buildTitlebar();
     wireDismiss();
     root.setAttribute("data-nb-theme", current.id);
-    retheme(current, true);
+    reapply(true);
     // Ask Rust for the saved accounts. It answers through __nebulaSetAccounts.
     send(JSON.stringify({ op: "list" }));
     // On Discord's login page, ask Rust for a pending account to fill in.
@@ -574,13 +728,13 @@
     new MutationObserver(function () {
       if (root.className === lastClass) return;
       lastClass = root.className;
-      schedule(true);
+      reapply(true);
     }).observe(root, { attributes: true, attributeFilter: ["class"] });
     // Our overrides live in the root's inline style. If anything replaces that
     // attribute (window resize or layout changes can do this), the overrides are
-    // lost, so reapply them now. The scheduled pass drops the records of its own
+    // lost, so reapply them now. The pass drops the records of its own
     // writes, so this does not loop.
-    styleObserver = new MutationObserver(function () { schedule(false); });
+    styleObserver = new MutationObserver(function () { reapply(false); });
     styleObserver.observe(root, { attributes: true, attributeFilter: ["style"] });
     // Only new stylesheets matter for the palette. Other head churn is ignored.
     new MutationObserver(function (records) {
@@ -588,11 +742,11 @@
         var nodes = records[i].addedNodes;
         for (var j = 0; j < nodes.length; j++) {
           var name = nodes[j].nodeName;
-          if (name === "STYLE" || name === "LINK") return schedule(true);
+          if (name === "STYLE" || name === "LINK") return reapply(true);
         }
       }
     }).observe(document.head, { childList: true });
-    window.addEventListener("load", function () { schedule(true); });
+    window.addEventListener("load", function () { reapply(true); });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build, { once: true });

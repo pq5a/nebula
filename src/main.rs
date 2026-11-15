@@ -16,11 +16,12 @@ use tao::{
 };
 #[cfg(target_os = "windows")]
 use wry::WebViewBuilderExtWindows;
-use wry::{WebContext, WebView, WebViewBuilder, RGBA};
+use wry::{WebContext, WebView, WebViewBuilder};
 
 use serde_json::json;
 
 mod accounts;
+mod themes;
 mod updater;
 mod vencord;
 
@@ -126,42 +127,6 @@ fn parse_command(msg: &str) -> Option<WindowCommand> {
     }
 }
 
-// Built-in themes: id, and the background shown before Discord paints. The
-// full palettes live in src/chrome.js.
-const THEMES: [(&str, RGBA); 8] = [
-    ("nebula", (0x0d, 0x0a, 0x1f, 255)),
-    ("midnight", (0x05, 0x08, 0x0f, 255)),
-    ("ember", (0x14, 0x0a, 0x08, 255)),
-    ("aurora", (0x07, 0x13, 0x0f, 255)),
-    ("rose", (0x17, 0x0a, 0x12, 255)),
-    ("forest", (0x09, 0x12, 0x0a, 255)),
-    ("solar", (0x15, 0x11, 0x0a, 255)),
-    ("graphite", (0x0b, 0x0c, 0x0f, 255)),
-];
-
-fn known_theme(id: &str) -> Option<&'static str> {
-    THEMES.iter().map(|(t, _)| *t).find(|t| *t == id)
-}
-
-fn theme_background(id: &str) -> RGBA {
-    THEMES
-        .iter()
-        .find(|(t, _)| *t == id)
-        .map_or(THEMES[0].1, |(_, color)| *color)
-}
-
-fn theme_path(data_dir: &Path) -> PathBuf {
-    data_dir.join("theme.txt")
-}
-
-// The saved theme, or the default if none is saved or the file is invalid.
-fn saved_theme(data_dir: &Path) -> &'static str {
-    fs::read_to_string(theme_path(data_dir))
-        .ok()
-        .and_then(|s| known_theme(s.trim()))
-        .unwrap_or(THEMES[0].0)
-}
-
 // Low-power mode (10 FPS while tabbed out) is saved as "on" or "off". It is on
 // unless the file says "off", so a missing or damaged file keeps the default.
 fn throttle_path(data_dir: &Path) -> PathBuf {
@@ -189,9 +154,10 @@ fn main() -> wry::Result<()> {
     let icon: Option<Icon> = None;
 
     let data_dir = data_dir();
-    let theme = saved_theme(&data_dir);
+    let theme = themes::saved_theme(&data_dir);
+    let custom = themes::saved_custom(&data_dir);
     // Painted until Discord renders, so startup shows the theme, not white.
-    let background = theme_background(theme);
+    let background = themes::window_background(&theme, custom.as_ref());
 
     let window = WindowBuilder::new()
         .with_title(APP_NAME)
@@ -206,7 +172,8 @@ fn main() -> wry::Result<()> {
     let mut web_context = WebContext::new(Some(data_dir.clone()));
     let throttle = saved_throttle(&data_dir);
     let chrome_script = format!(
-        "window.__nebulaTheme = \"{theme}\";\nwindow.__nebulaThrottle = {throttle};\n{CHROME_SCRIPT}"
+        "window.__nebulaTheme = \"{theme}\";\nwindow.__nebulaCustom = {};\nwindow.__nebulaThrottle = {throttle};\n{CHROME_SCRIPT}",
+        themes::custom_json(custom.as_ref())
     );
 
     let mut builder = WebViewBuilder::with_web_context(&mut web_context)
@@ -266,7 +233,6 @@ fn main() -> wry::Result<()> {
     updater::remove_leftover();
     updater::spawn_check(data_dir.clone(), event_loop.create_proxy(), UPDATE_READY);
 
-    let theme_file = theme_path(&data_dir);
     let throttle_file = throttle_path(&data_dir);
     let accounts_file = data_dir.join(accounts::FILE_NAME);
     let mut saved_accounts = accounts::load(&accounts_file);
@@ -294,8 +260,17 @@ fn main() -> wry::Result<()> {
                         Err(e) => updater::show_error(&format!("Nebula could not be updated: {e}")),
                     }
                 } else if let Some(id) = msg.strip_prefix("theme:") {
-                    if let Some(id) = known_theme(id) {
-                        let _ = fs::write(&theme_file, id);
+                    if themes::can_select(id, &data_dir) {
+                        if let Err(e) = themes::save_theme(&data_dir, id) {
+                            eprintln!("could not save theme: {e}");
+                        }
+                    }
+                } else if let Some(json) = msg.strip_prefix("custom:") {
+                    // The page sends "theme:custom" right after this, so the saved colors exist by then.
+                    if let Some(custom) = themes::parse_custom(json) {
+                        if let Err(e) = themes::save_custom(&data_dir, &custom) {
+                            eprintln!("could not save custom theme: {e}");
+                        }
                     }
                 } else if let Some(value) = msg.strip_prefix("throttle:") {
                     match value {
@@ -408,9 +383,7 @@ fn handle_account(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        http_host, is_in_app, is_web_url, known_theme, parse_command, parse_throttle, WindowCommand,
-    };
+    use super::{http_host, is_in_app, is_web_url, parse_command, parse_throttle, WindowCommand};
 
     #[test]
     fn throttle_is_on_unless_turned_off() {
@@ -418,16 +391,6 @@ mod tests {
         assert!(parse_throttle("on\n"));
         assert!(parse_throttle("garbage"));
         assert!(!parse_throttle("off\n"));
-    }
-
-    #[test]
-    fn only_built_in_themes_are_saved() {
-        assert_eq!(known_theme("midnight"), Some("midnight"));
-        assert_eq!(known_theme("ember"), Some("ember"));
-        assert_eq!(known_theme("graphite"), Some("graphite"));
-        assert_eq!(known_theme("solar"), Some("solar"));
-        assert_eq!(known_theme("../evil"), None);
-        assert_eq!(known_theme("nebula\";alert(1)//"), None);
     }
 
     #[test]
