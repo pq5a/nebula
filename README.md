@@ -15,6 +15,21 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
 All versions are listed on the [releases page](https://github.com/pq5a/nebula/releases).
 Nebula runs on Windows only.
 
+### Verify the download
+
+Each release asset has a SHA-256 digest on its release page. To check your copy,
+run this in PowerShell from the folder with the download:
+
+```powershell
+Get-FileHash .\Nebula.zip -Algorithm SHA256
+```
+
+The hash must match the one listed for that release. v0.2.0 `Nebula.zip`:
+
+```
+20a81c62cdf50a6f43cab7b7eb3f1cad67c0ef5c524592717e1776146b202528
+```
+
 ## Behaviour
 
 - Discord (`discord.com`, `discordapp.com` and subdomains) stays inside the Nebula window.
