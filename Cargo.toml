@@ -1,6 +1,6 @@
 [package]
 name = "nebula"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
@@ -15,7 +15,7 @@ native-tls = "0.2"
 
 # Windows DPAPI, used to encrypt the saved account tokens. Already in the lockfile.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_UI_WindowsAndMessaging"] }
 
 [build-dependencies]
 winres = "0.1"
