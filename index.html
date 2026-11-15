@@ -322,8 +322,8 @@
             <svg class="arrow dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
           </button>
         </div>
-        <p class="meta">Nebula.exe · <b>2.0 MB</b> · Windows 10 and 11, 64-bit</p>
-        <p class="meta" style="font-size:12px;margin-top:6px">SHA-256 <code style="word-break:break-all">32136f674097ebae9b87a29b5ee249a3b99e86b3a1cde0513e723036c556fe7c</code></p>
+        <p class="meta">Nebula.zip · <b>0.9 MB</b> · contains Nebula.exe · Windows 10 and 11, 64-bit</p>
+        <p class="meta" style="font-size:12px;margin-top:6px">Nebula.exe SHA-256 <code style="word-break:break-all">32136f674097ebae9b87a29b5ee249a3b99e86b3a1cde0513e723036c556fe7c</code></p>
         <p class="note">Windows may show a SmartScreen warning because the app is not code-signed. Choose <b>More info</b>, then <b>Run anyway</b>.</p>
       </div>
 
@@ -391,8 +391,8 @@
       <span style="display:block;margin-top:10px;font-size:clamp(28px,4vw,40px);letter-spacing:-.02em">Up and running in three steps</span>
     </h2>
     <ol class="steps" id="steps">
-      <li><b>Download</b>Click the button at the top to save Nebula.exe.</li>
-      <li><b>Run it</b>Open the file. If SmartScreen appears, choose "Run anyway".</li>
+      <li><b>Download</b>Click the button at the top to save Nebula.zip, then unzip it.</li>
+      <li><b>Run it</b>Open Nebula.exe from the unzipped folder. If SmartScreen appears, choose "Run anyway".</li>
       <li><b>Make it yours</b>Click the gear in the title bar and pick a theme.</li>
     </ol>
 
@@ -427,7 +427,7 @@
     targets.forEach(function (el) { io.observe(el); });
   })();
 
-  // Download button: saves the latest Nebula.exe from the GitHub release.
+  // Download button: saves the latest Nebula.zip from the GitHub release.
   (function () {
     var btn = document.getElementById("download");
     var label = document.getElementById("btn-text");
@@ -436,8 +436,8 @@
       btn.classList.add("busy");
       label.textContent = "Starting download…";
       var a = document.createElement("a");
-      a.href = "https://github.com/pq5a/nebula/releases/latest/download/Nebula.exe";
-      a.download = "Nebula.exe";
+      a.href = "https://github.com/pq5a/nebula/releases/latest/download/Nebula.zip";
+      a.download = "Nebula.zip";
       document.body.appendChild(a);
       a.click();
       a.remove();
