@@ -10,12 +10,14 @@ use tao::platform::windows::IconExtWindows;
 use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoopBuilder},
     window::{Icon, WindowBuilder},
 };
 use wry::{WebContext, WebViewBuilder};
 
 mod vencord;
+
+const CHROME_SCRIPT: &str = include_str!("chrome.js");
 
 const APP_NAME: &str = "Nebula";
 const DISCORD_URL: &str = "https://discord.com/app";
@@ -84,8 +86,28 @@ fn open_in_firefox(url: &str) {
         .spawn();
 }
 
+// Window actions requested by the in-page title bar (src/chrome.js).
+#[derive(Debug, PartialEq)]
+enum WindowCommand {
+    Drag,
+    Minimize,
+    Maximize,
+    Close,
+}
+
+fn parse_command(msg: &str) -> Option<WindowCommand> {
+    match msg {
+        "drag" => Some(WindowCommand::Drag),
+        "minimize" => Some(WindowCommand::Minimize),
+        "maximize" => Some(WindowCommand::Maximize),
+        "close" => Some(WindowCommand::Close),
+        _ => None,
+    }
+}
+
 fn main() -> wry::Result<()> {
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoopBuilder::<WindowCommand>::with_user_event().build();
+    let proxy = event_loop.create_proxy();
 
     #[cfg(target_os = "windows")]
     let icon = Icon::from_resource(APP_ICON_RESOURCE, None).ok();
@@ -94,6 +116,7 @@ fn main() -> wry::Result<()> {
 
     let window = WindowBuilder::new()
         .with_title(APP_NAME)
+        .with_decorations(false)
         .with_window_icon(icon)
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(LogicalSize::new(640.0, 480.0))
@@ -122,7 +145,16 @@ fn main() -> wry::Result<()> {
                 open_in_firefox(&url);
                 false
             }
-        });
+        })
+        // Title bar buttons. Only Discord pages may send commands.
+        .with_ipc_handler(move |req| {
+            if is_in_app(&req.uri().to_string()) {
+                if let Some(cmd) = parse_command(req.body()) {
+                    let _ = proxy.send_event(cmd);
+                }
+            }
+        })
+        .with_initialization_script(CHROME_SCRIPT);
 
     #[cfg(debug_assertions)]
     {
@@ -145,12 +177,20 @@ fn main() -> wry::Result<()> {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
-        if let Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } = event
-        {
-            *control_flow = ControlFlow::Exit;
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            Event::UserEvent(cmd) => match cmd {
+                WindowCommand::Drag => {
+                    let _ = window.drag_window();
+                }
+                WindowCommand::Minimize => window.set_minimized(true),
+                WindowCommand::Maximize => window.set_maximized(!window.is_maximized()),
+                WindowCommand::Close => *control_flow = ControlFlow::Exit,
+            },
+            _ => {}
         }
 
         // Keep the window, webview and web context alive for the loop's lifetime.
@@ -160,7 +200,17 @@ fn main() -> wry::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{http_host, is_in_app, is_web_url};
+    use super::{http_host, is_in_app, is_web_url, parse_command, WindowCommand};
+
+    #[test]
+    fn only_known_window_commands_are_accepted() {
+        assert_eq!(parse_command("drag"), Some(WindowCommand::Drag));
+        assert_eq!(parse_command("minimize"), Some(WindowCommand::Minimize));
+        assert_eq!(parse_command("maximize"), Some(WindowCommand::Maximize));
+        assert_eq!(parse_command("close"), Some(WindowCommand::Close));
+        assert_eq!(parse_command("exec x"), None);
+        assert_eq!(parse_command(""), None);
+    }
 
     #[test]
     fn discord_urls_stay_in_app() {

@@ -18,6 +18,11 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
   verified download, the copy compiled into the executable is used, so Nebula still
   starts offline.
 - Button hover/press transitions are disabled in the injected stylesheet.
+- The window has no native title bar. Nebula draws its own (`src/chrome.js`), with
+  minimize, maximize and close buttons. Double-clicking it toggles maximize.
+- The gear button opens Nebula Settings. It has three themes (Nebula, Midnight and
+  Ember) that restyle Nebula's title bar and settings. Discord's own UI is not
+  restyled. The choice is saved in the webview's local storage.
 
 ## Building
 
