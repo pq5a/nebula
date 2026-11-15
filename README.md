@@ -9,14 +9,14 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
 1. Go to the Nebula website: [nebula-skin.netlify.app](https://nebula-skin.netlify.app)
    and click the download button, or open the [latest release](https://github.com/pq5a/nebula/releases/latest)
    directly.
-2. Download `Nebula.zip` from the release and extract it to a folder of your choice.
+2. Download `Nebula.exe` from the release and save it to a folder of your choice.
 3. Run `Nebula.exe`. Discord opens in its own window.
 
 All versions are listed on the [releases page](https://github.com/pq5a/nebula/releases).
 Nebula runs on Windows only.
 
 > **Warning: Windows Defender may flag the download.**
-> Defender can remove `Nebula.zip` and report it as `Trojan:Script/Wacatac.B!ml`. We
+> Defender can remove `Nebula.exe` and report it as `Trojan:Script/Wacatac.B!ml`. We
 > believe this is a false positive: the `.exe` inside is clean on VirusTotal, and the
 > flag is a machine-learning guess. We plan to send the file to Microsoft for review.
 >
@@ -34,13 +34,13 @@ Each release asset has a SHA-256 digest on its release page. To check your copy,
 run this in PowerShell from the folder with the download:
 
 ```powershell
-Get-FileHash .\Nebula.zip -Algorithm SHA256
+Get-FileHash .\Nebula.exe -Algorithm SHA256
 ```
 
-The hash must match the one listed for that release. v0.2.0 `Nebula.zip`:
+The hash must match the one listed for that release. v0.3.0 `Nebula.exe`:
 
 ```
-20a81c62cdf50a6f43cab7b7eb3f1cad67c0ef5c524592717e1776146b202528
+320e7c9daa59dd78774889505cd38cb9e37d4990cc9378482c18e4c25a3f82f8
 ```
 
 ## Behaviour
@@ -56,6 +56,11 @@ The hash must match the one listed for that release. v0.2.0 `Nebula.zip`:
   `%APPDATA%\Nebula\vencord`. It takes effect on the next launch. If there is no
   verified download, the copy compiled into the executable is used, so Nebula still
   starts offline.
+- Nebula checks GitHub for a newer release each time it starts, after the window
+  has loaded. If one exists, a Yes/No prompt appears. Choosing **Yes** downloads
+  `Nebula.exe` from that release, checks it against the SHA-256 digest GitHub
+  publishes for it, replaces the running copy and restarts Nebula. **No** keeps the
+  current version. Debug builds never check.
 - Button hover/press transitions are disabled in the injected stylesheet.
 - The window has no native title bar. Nebula draws its own (`src/chrome.js`), with
   minimize, maximize and close buttons. Double-clicking it toggles maximize.

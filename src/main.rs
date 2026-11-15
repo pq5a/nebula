@@ -21,6 +21,7 @@ use wry::{WebContext, WebView, WebViewBuilder, RGBA};
 use serde_json::json;
 
 mod accounts;
+mod updater;
 mod vencord;
 
 const CHROME_SCRIPT: &str = include_str!("chrome.js");
@@ -39,6 +40,8 @@ const DISCORD_URL: &str = "https://discord.com/app";
 const LOGIN_URL: &str = "https://discord.com/login";
 // Internal event from the switch timer. Page messages with this prefix are dropped.
 const LOGIN_CONTINUE: &str = "internal:account-continue";
+// Sent by the update thread once the new executable is staged and the user said yes.
+const UPDATE_READY: &str = "internal:update-ready";
 
 // Hosts that stay inside the Nebula window. Everything else opens in Firefox.
 const IN_APP_HOSTS: [&str; 2] = ["discord.com", "discordapp.com"];
@@ -259,6 +262,10 @@ fn main() -> wry::Result<()> {
 
     let webview = builder.build(&window)?;
 
+    // The update check starts only after everything is loaded, so it never delays startup.
+    updater::remove_leftover();
+    updater::spawn_check(data_dir.clone(), event_loop.create_proxy(), UPDATE_READY);
+
     let theme_file = theme_path(&data_dir);
     let throttle_file = throttle_path(&data_dir);
     let accounts_file = data_dir.join(accounts::FILE_NAME);
@@ -278,6 +285,14 @@ fn main() -> wry::Result<()> {
             Event::UserEvent(msg) => {
                 if msg == LOGIN_CONTINUE {
                     let _ = webview.load_url(LOGIN_URL);
+                } else if msg == UPDATE_READY {
+                    match updater::install(&data_dir) {
+                        Ok(exe) => {
+                            let _ = std::process::Command::new(exe).spawn();
+                            *control_flow = ControlFlow::Exit;
+                        }
+                        Err(e) => updater::show_error(&format!("Nebula could not be updated: {e}")),
+                    }
                 } else if let Some(id) = msg.strip_prefix("theme:") {
                     if let Some(id) = known_theme(id) {
                         let _ = fs::write(&theme_file, id);
