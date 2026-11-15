@@ -20,7 +20,9 @@ Nebula runs on Windows only.
 > believe this is a false positive: the `.exe` inside is clean on VirusTotal, and the
 > flag is a machine-learning guess. We plan to send the file to Microsoft for review.
 >
-> - **Do not turn off virus protection** to get Nebula to run.
+> - **Do not turn off virus protection** to get Nebula to run. While it's off, your PC
+>   is open to other threats that have nothing to do with Nebula, and turning it back
+>   on doesn't undo any damage done in the meantime.
 > - Before running anything, check the file's SHA-256 hash against the one in
 >   [Verify the download](#verify-the-download) below.
 > - Only download Nebula from the [official release page](https://github.com/pq5a/nebula/releases).
