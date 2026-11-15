@@ -427,7 +427,7 @@
     targets.forEach(function (el) { io.observe(el); });
   })();
 
-  // Download button: saves Nebula.exe from the same folder as this page.
+  // Download button: saves the latest Nebula.exe from the GitHub release.
   (function () {
     var btn = document.getElementById("download");
     var label = document.getElementById("btn-text");
@@ -436,7 +436,7 @@
       btn.classList.add("busy");
       label.textContent = "Starting download…";
       var a = document.createElement("a");
-      a.href = "Nebula.exe";
+      a.href = "https://github.com/pq5a/nebula/releases/latest/download/Nebula.exe";
       a.download = "Nebula.exe";
       document.body.appendChild(a);
       a.click();
