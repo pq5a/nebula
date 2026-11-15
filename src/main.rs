@@ -1,6 +1,7 @@
 ﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -105,6 +106,25 @@ fn parse_command(msg: &str) -> Option<WindowCommand> {
     }
 }
 
+// Built-in themes. The colors live in src/chrome.js.
+const THEMES: [&str; 3] = ["nebula", "midnight", "ember"];
+
+fn known_theme(id: &str) -> Option<&'static str> {
+    THEMES.iter().copied().find(|t| *t == id)
+}
+
+fn theme_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("theme.txt")
+}
+
+// The saved theme, or the default if none is saved or the file is invalid.
+fn saved_theme(data_dir: &Path) -> &'static str {
+    fs::read_to_string(theme_path(data_dir))
+        .ok()
+        .and_then(|s| known_theme(s.trim()))
+        .unwrap_or(THEMES[0])
+}
+
 fn main() -> wry::Result<()> {
     let event_loop = EventLoopBuilder::<WindowCommand>::with_user_event().build();
     let proxy = event_loop.create_proxy();
@@ -125,6 +145,11 @@ fn main() -> wry::Result<()> {
 
     let data_dir = data_dir();
     let mut web_context = WebContext::new(Some(data_dir.clone()));
+    let chrome_script = format!(
+        "window.__nebulaTheme = \"{}\";\n{CHROME_SCRIPT}",
+        saved_theme(&data_dir)
+    );
+    let theme_file = theme_path(&data_dir);
 
     let mut builder = WebViewBuilder::with_web_context(&mut web_context)
         .with_url(DISCORD_URL)
@@ -146,15 +171,21 @@ fn main() -> wry::Result<()> {
                 false
             }
         })
-        // Title bar buttons. Only Discord pages may send commands.
+        // Title bar and settings messages. Only Discord pages may send them.
         .with_ipc_handler(move |req| {
-            if is_in_app(&req.uri().to_string()) {
-                if let Some(cmd) = parse_command(req.body()) {
-                    let _ = proxy.send_event(cmd);
+            if !is_in_app(&req.uri().to_string()) {
+                return;
+            }
+            let msg = req.body();
+            if let Some(id) = msg.strip_prefix("theme:") {
+                if let Some(id) = known_theme(id) {
+                    let _ = fs::write(&theme_file, id);
                 }
+            } else if let Some(cmd) = parse_command(msg) {
+                let _ = proxy.send_event(cmd);
             }
         })
-        .with_initialization_script(CHROME_SCRIPT);
+        .with_initialization_script(&chrome_script);
 
     #[cfg(debug_assertions)]
     {
@@ -200,7 +231,15 @@ fn main() -> wry::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{http_host, is_in_app, is_web_url, parse_command, WindowCommand};
+    use super::{http_host, is_in_app, is_web_url, known_theme, parse_command, WindowCommand};
+
+    #[test]
+    fn only_built_in_themes_are_saved() {
+        assert_eq!(known_theme("midnight"), Some("midnight"));
+        assert_eq!(known_theme("ember"), Some("ember"));
+        assert_eq!(known_theme("../evil"), None);
+        assert_eq!(known_theme("nebula\";alert(1)//"), None);
+    }
 
     #[test]
     fn only_known_window_commands_are_accepted() {

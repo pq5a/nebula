@@ -7,11 +7,13 @@
   if (window.__nebulaChrome) return;
   window.__nebulaChrome = true;
 
-  var THEME_KEY = "nebula-theme";
+  // hue/tint: hue and saturation (%) for Discord's neutral and primary ramps.
+  // accentHue: hue for Discord's blurple ramp (brand color). Lightness is kept
+  // from Discord's own palette, so text contrast matches the stock theme.
   var THEMES = [
-    { id: "nebula", name: "Nebula", blurb: "Deep violet with a soft glow", bg: "#0d0a1f", panel: "#15112e", accent: "#a78bfa" },
-    { id: "midnight", name: "Midnight", blurb: "Cold blue, crisp edges", bg: "#05080f", panel: "#0a1322", accent: "#38bdf8" },
-    { id: "ember", name: "Ember", blurb: "Warm dark with orange heat", bg: "#140a08", panel: "#22120d", accent: "#fb923c" }
+    { id: "nebula", name: "Nebula", blurb: "Deep violet with a soft glow", bg: "#0d0a1f", panel: "#15112e", accent: "#a78bfa", hue: 258, tint: 55, accentHue: 262 },
+    { id: "midnight", name: "Midnight", blurb: "Cold blue, crisp edges", bg: "#05080f", panel: "#0a1322", accent: "#38bdf8", hue: 212, tint: 50, accentHue: 198 },
+    { id: "ember", name: "Ember", blurb: "Warm dark with orange heat", bg: "#140a08", panel: "#22120d", accent: "#fb923c", hue: 22, tint: 48, accentHue: 24 }
   ];
 
   var STYLE = [
@@ -68,10 +70,113 @@
     if (window.ipc) window.ipc.postMessage(cmd);
   }
 
-  function applyTheme(id) {
-    var theme = THEMES.filter(function (t) { return t.id === id; })[0] || THEMES[0];
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return [h, s * 100, l * 100];
+  }
+
+  // Discord uses color-mix(in oklab, ...), which canvas reports in oklab form.
+  function oklabToRgb(L, a, b) {
+    var l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
+    var m = Math.pow(L - 0.1055613458 * a - 0.0638541728 * b, 3);
+    var s = Math.pow(L - 0.0894841775 * a - 1.2914855480 * b, 3);
+    return [
+      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+    ].map(function (x) {
+      x = Math.min(1, Math.max(0, x));
+      x = x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+      return Math.round(x * 255);
+    });
+  }
+
+  // Returns [r, g, b, alpha] (0-255) for a CSS color, or null if `value` is not one.
+  var canvas = document.createElement("canvas").getContext("2d");
+  function parseColor(value) {
+    canvas.fillStyle = "#010203";
+    canvas.fillStyle = value;
+    var s = canvas.fillStyle;
+    if (s === "#010203") return null;
+    if (s.charAt(0) === "#") {
+      return [parseInt(s.substr(1, 2), 16), parseInt(s.substr(3, 2), 16), parseInt(s.substr(5, 2), 16), 1];
+    }
+    var n = s.match(/-?[\d.]+/g).map(Number);
+    var alpha = n.length > 3 ? n[3] : 1;
+    if (s.indexOf("oklab(") === 0) return oklabToRgb(n[0], n[1], n[2]).concat(alpha);
+    if (s.indexOf("oklch(") === 0) {
+      var h = n[2] * Math.PI / 180;
+      return oklabToRgb(n[0], n[1] * Math.cos(h), n[1] * Math.sin(h)).concat(alpha);
+    }
+    if (s.indexOf("color(") === 0) return [n[0] * 255, n[1] * 255, n[2] * 255, alpha];
+    return [n[0], n[1], n[2], alpha];
+  }
+
+  // Discord's colors are CSS custom properties, and many are copied as literal
+  // values rather than referenced. So every color property is remapped by hue
+  // family, keeping its lightness and alpha: neutral surfaces and text take the
+  // theme's hue, blurple/brand colors take the accent hue, and red, green and
+  // yellow are left alone. Lightness is unchanged, so contrast stays as in Discord.
+  var originals = {};
+  // Set by Rust from the saved choice: the webview has no localStorage.
+  var current = THEMES.filter(function (t) { return t.id === window.__nebulaTheme; })[0] || THEMES[0];
+  function retheme(theme) {
+    var root = document.documentElement;
+    var cs = getComputedStyle(root);
+    var names = [];
+    for (var i = 0; i < cs.length; i++) if (cs[i].indexOf("--") === 0) names.push(cs[i]);
+    // Read everything before writing: the computed style is live, so each write
+    // would force a full restyle if reads and writes alternated.
+    names.forEach(function (name) {
+      if (!originals[name]) originals[name] = cs.getPropertyValue(name);
+    });
+    // Light colors are text, so they must stay readable on the lightest surface.
+    var surface = hslLum(theme.hue, theme.tint, 18);
+    names.forEach(function (name) {
+      var c = originals[name] && parseColor(originals[name]);
+      if (!c) return;
+      var hsl = rgbToHsl(c[0], c[1], c[2]);
+      var h = hsl[0], s = hsl[1], l = hsl[2];
+      if (s > 30 && h >= 195 && h <= 265) h = theme.accentHue;
+      else if (s <= 30) { h = theme.hue; s = theme.tint; }
+      else return;
+      if (l > 50) while (l < 100 && contrast(hslLum(h, s, l), surface) < 4.5) l += 0.5;
+      root.style.setProperty(name, "hsl(" + h + " " + s + "% " + l + "% / " + c[3] + ")", "important");
+    });
+  }
+
+  // Relative luminance (WCAG) of an HSL color.
+  function hslLum(h, s, l) {
+    s /= 100; l /= 100;
+    var a = s * Math.min(l, 1 - l);
+    var f = function (n) {
+      var k = (n + h / 30) % 12;
+      return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    };
+    var c = [f(0), f(8), f(4)].map(function (x) {
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+
+  function contrast(a, b) {
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  }
+
+  function applyTheme(theme, save) {
+    current = theme;
     document.documentElement.setAttribute("data-nb-theme", theme.id);
-    localStorage.setItem(THEME_KEY, theme.id);
+    if (save) send("theme:" + theme.id);
+    retheme(theme);
     document.querySelectorAll("#nb-modal .nb-card").forEach(function (card) {
       card.classList.toggle("active", card.dataset.id === theme.id);
     });
@@ -101,7 +206,7 @@
     overlay.addEventListener("click", function (e) {
       if (e.target === overlay || e.target.closest(".nb-close-modal")) close();
       var card = e.target.closest(".nb-card");
-      if (card) applyTheme(card.dataset.id);
+      if (card) applyTheme(THEMES.filter(function (t) { return t.id === card.dataset.id; })[0], true);
     });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") close();
@@ -140,7 +245,12 @@
 
     var overlay = buildSettings();
     buildTitlebar(overlay);
-    applyTheme(localStorage.getItem(THEME_KEY) || THEMES[0].id);
+    applyTheme(current, false);
+
+    // Discord may define its palette after this runs, or change its theme class.
+    window.addEventListener("load", function () { retheme(current); });
+    new MutationObserver(function () { retheme(current); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build, { once: true });

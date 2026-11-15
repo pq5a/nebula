@@ -20,9 +20,12 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
 - Button hover/press transitions are disabled in the injected stylesheet.
 - The window has no native title bar. Nebula draws its own (`src/chrome.js`), with
   minimize, maximize and close buttons. Double-clicking it toggles maximize.
-- The gear button opens Nebula Settings. It has three themes (Nebula, Midnight and
-  Ember) that restyle Nebula's title bar and settings. Discord's own UI is not
-  restyled. The choice is saved in the webview's local storage.
+- The gear button opens Nebula Settings with three themes (Nebula, Midnight and
+  Ember). A theme recolors the whole Discord client: backgrounds, text, and the
+  brand accent. Lightness is kept from Discord's palette, and light text is lifted
+  to at least 4.5:1 contrast against the surfaces. Red, green and yellow are unchanged.
+- The chosen theme is saved to `%APPDATA%\Nebula\theme.txt`. The webview has no
+  localStorage, so the file is read at startup and injected before the page loads.
 
 ## Building
 
