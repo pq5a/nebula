@@ -1,0 +1,17 @@
+[package]
+name = "nebula"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tao = "0.30"
+wry = "0.47"
+
+[build-dependencies]
+winres = "0.1"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

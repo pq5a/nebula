@@ -1,0 +1,4 @@
+target/
+*.exe
+# Local stale tree dump, not source.
+nebula-dump.txt
