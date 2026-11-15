@@ -10,6 +10,13 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
 - Other web links open as a new tab in Firefox.
 - Vencord is injected only on Discord pages. To start Nebula without it, create
   `%APPDATA%\Nebula\no-vencord`.
+- Discord itself is the live web app at `discord.com/app`, so it is always current.
+- Vencord updates itself. On each launch Nebula checks Vencord's `devbuild` GitHub
+  release. A new build is downloaded in the background, each file is checked against
+  the SHA-256 digest GitHub publishes for it, and it is stored in
+  `%APPDATA%\Nebula\vencord`. It takes effect on the next launch. If there is no
+  verified download, the copy compiled into the executable is used, so Nebula still
+  starts offline.
 - Button hover/press transitions are disabled in the injected stylesheet.
 
 ## Building
@@ -21,15 +28,16 @@ cargo build --release
 cargo test
 ```
 
-The Vencord bundle, stylesheet and license notice in `vendor/` are pinned copies of the
-Vencord "devbuild" release (see the note at the top of `build.rs`). The build does not
-download anything, so it works offline. The build script embeds them into the executable.
+`vendor/` holds a copy of the Vencord "devbuild" release, compiled into the executable
+as the offline fallback. Its license notice is `vendor/vencord.browser.js.LEGAL.txt`.
+The build does not download anything.
 
 ## Layout
 
 - `src/main.rs` — window, webview setup, navigation rules, Firefox handoff.
-- `build.rs` — builds the init script from the vendored Vencord files and embeds the Windows icon.
-- `vendor/` — third-party Vencord files (see `vendor/vencord.browser.js.LEGAL.txt`).
+- `src/vencord.rs` — Vencord download, digest verification, cache, and page script.
+- `build.rs` — embeds the Windows icon.
+- `vendor/` — third-party Vencord files (fallback copy).
 - `assets/icon.ico`, `Logo.png` — application icon and logo.
 
 ## License

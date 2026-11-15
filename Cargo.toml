@@ -6,6 +6,12 @@ edition = "2021"
 [dependencies]
 tao = "0.30"
 wry = "0.47"
+# Blocking HTTP client. native-tls uses Windows' built-in TLS (SChannel),
+# which keeps the binary small compared with bundling rustls.
+ureq = { version = "2", default-features = false, features = ["native-tls"] }
+serde_json = "1"
+sha2 = "0.10"
+native-tls = "0.2"
 
 [build-dependencies]
 winres = "0.1"
