@@ -11,6 +11,12 @@ const VENDOR_FILES: [&str; 3] = [
     "vendor/vencord.browser.js.LEGAL.txt",
 ];
 
+// Appended to the Vencord stylesheet. Button hover/press fades are removed so
+// clicks and hovers respond immediately instead of animating in.
+const NEBULA_CSS: &str = r#"
+button, [role="button"], a[role="button"] { transition: none !important; }
+"#;
+
 // Top-level declaration in the Vencord bundle that must become a global.
 const BUNDLE_GLOBAL_DECL: &str = "var Vencord=";
 
@@ -63,7 +69,10 @@ fn main() {
     }
 
     let js = fs::read_to_string("vendor/vencord.browser.js").expect("read Vencord JS");
-    let css = fs::read_to_string("vendor/vencord.browser.css").expect("read Vencord CSS");
+    let css = format!(
+        "{}\n{NEBULA_CSS}",
+        fs::read_to_string("vendor/vencord.browser.css").expect("read Vencord CSS")
+    );
 
     // Runs once per document of discord.com. The CSS is added as soon as a
     // <head>/<html> exists, and the bundle is started regardless of the CSS.
