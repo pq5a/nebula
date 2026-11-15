@@ -139,19 +139,22 @@
   // may have changed, so our overrides are removed first and the originals
   // are read again. Only values that differ from what is already set are written.
   function retheme(theme, fresh) {
+    var names;
     if (fresh) {
       Object.keys(applied).forEach(function (name) { root.style.removeProperty(name); });
       applied = {};
       originals = {};
+      // Walk the computed style once to find the variables, and read them all
+      // before any write: the computed style is live, so alternating reads and
+      // writes would force a full restyle on every access.
+      var cs = getComputedStyle(root);
+      names = [];
+      for (var i = 0; i < cs.length; i++) if (cs[i].indexOf("--") === 0) names.push(cs[i]);
+      names.forEach(function (name) { originals[name] = parseColor(cs.getPropertyValue(name)); });
+    } else {
+      // The variable names are already known, so skip the computed-style walk.
+      names = Object.keys(originals);
     }
-    var cs = getComputedStyle(root);
-    var names = [];
-    for (var i = 0; i < cs.length; i++) if (cs[i].indexOf("--") === 0) names.push(cs[i]);
-    // Read everything before writing: the computed style is live, so each write
-    // would force a full restyle if reads and writes alternated.
-    names.forEach(function (name) {
-      if (!(name in originals)) originals[name] = parseColor(cs.getPropertyValue(name));
-    });
     // Light colors are text, so they must stay readable on the lightest surface.
     var surface = hslLum(theme.hue, theme.tint, 18);
     var next = {};
@@ -309,7 +312,7 @@
     new MutationObserver(function () { schedule(false); })
       .observe(root, { attributes: true, attributeFilter: ["style"] });
     new MutationObserver(function () { schedule(false); })
-      .observe(document.head, { childList: true, subtree: true, characterData: true });
+      .observe(document.head, { childList: true, subtree: true });
     window.addEventListener("load", function () { schedule(false); });
   }
 

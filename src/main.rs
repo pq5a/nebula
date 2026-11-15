@@ -14,6 +14,8 @@ use tao::{
     event_loop::{ControlFlow, EventLoopBuilder},
     window::{Icon, WindowBuilder},
 };
+#[cfg(target_os = "windows")]
+use wry::WebViewBuilderExtWindows;
 use wry::{WebContext, WebViewBuilder, RGBA};
 
 mod vencord;
@@ -21,6 +23,15 @@ mod vencord;
 const CHROME_SCRIPT: &str = include_str!("chrome.js");
 
 const APP_NAME: &str = "Nebula";
+
+// WebView2 (Chromium) switches. Background networking, component updates,
+// sync and reporting are off, which cuts idle CPU, RAM and network use.
+#[cfg(target_os = "windows")]
+const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,MediaRouter,OptimizationHints \
+    --disable-background-networking --disable-component-update --disable-sync \
+    --disable-breakpad --metrics-recording-only --no-first-run --disable-default-apps";
+#[cfg(not(target_os = "windows"))]
+const WEBVIEW_ARGS: &str = "";
 const DISCORD_URL: &str = "https://discord.com/app";
 
 // Hosts that stay inside the Nebula window. Everything else opens in Firefox.
@@ -168,6 +179,10 @@ fn main() -> wry::Result<()> {
     let mut builder = WebViewBuilder::with_web_context(&mut web_context)
         .with_url(DISCORD_URL)
         .with_background_color(background)
+        // Replaces wry's default args, so its three default disabled features
+        // are repeated here. The rest turn off background services Nebula
+        // doesn't need (updates, sync, crash and usage reporting).
+        .with_additional_browser_args(WEBVIEW_ARGS)
         // Links to other sites leave the app and open as a Firefox tab.
         .with_navigation_handler(|url| {
             if is_in_app(&url) || !is_web_url(&url) {
