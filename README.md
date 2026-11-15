@@ -34,4 +34,4 @@ download anything, so it works offline. The build script embeds them into the ex
 
 ## License
 
-No license has been chosen yet. The vendored Vencord files keep their own licenses.
+Nebula is licensed under the GNU General Public License v3.0 (see `LICENSE`). The vendored Vencord and third-party files keep their own licenses, listed in `vendor/vencord.browser.js.LEGAL.txt`.
