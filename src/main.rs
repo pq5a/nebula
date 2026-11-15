@@ -11,13 +11,16 @@ use tao::platform::windows::IconExtWindows;
 use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder},
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy},
     window::{Icon, WindowBuilder},
 };
 #[cfg(target_os = "windows")]
 use wry::WebViewBuilderExtWindows;
-use wry::{WebContext, WebViewBuilder, RGBA};
+use wry::{WebContext, WebView, WebViewBuilder, RGBA};
 
+use serde_json::json;
+
+mod accounts;
 mod vencord;
 
 const CHROME_SCRIPT: &str = include_str!("chrome.js");
@@ -33,6 +36,9 @@ const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
 #[cfg(not(target_os = "windows"))]
 const WEBVIEW_ARGS: &str = "";
 const DISCORD_URL: &str = "https://discord.com/app";
+const LOGIN_URL: &str = "https://discord.com/login";
+// Internal event from the switch timer. Page messages with this prefix are dropped.
+const LOGIN_CONTINUE: &str = "internal:account-continue";
 
 // Hosts that stay inside the Nebula window. Everything else opens in Firefox.
 const IN_APP_HOSTS: [&str; 2] = ["discord.com", "discordapp.com"];
@@ -149,7 +155,9 @@ fn saved_theme(data_dir: &Path) -> &'static str {
 }
 
 fn main() -> wry::Result<()> {
-    let event_loop = EventLoopBuilder::<WindowCommand>::with_user_event().build();
+    // Messages from the page (window commands, theme and account requests) are
+    // handled on the event loop, which owns the window and webview.
+    let event_loop = EventLoopBuilder::<String>::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
     #[cfg(target_os = "windows")]
@@ -174,7 +182,6 @@ fn main() -> wry::Result<()> {
 
     let mut web_context = WebContext::new(Some(data_dir.clone()));
     let chrome_script = format!("window.__nebulaTheme = \"{theme}\";\n{CHROME_SCRIPT}");
-    let theme_file = theme_path(&data_dir);
 
     let mut builder = WebViewBuilder::with_web_context(&mut web_context)
         .with_url(DISCORD_URL)
@@ -201,18 +208,12 @@ fn main() -> wry::Result<()> {
                 false
             }
         })
-        // Title bar and settings messages. Only Discord pages may send them.
+        // Title bar, settings and account messages. Only Discord pages may send them.
         .with_ipc_handler(move |req| {
-            if !is_in_app(&req.uri().to_string()) {
-                return;
-            }
-            let msg = req.body();
-            if let Some(id) = msg.strip_prefix("theme:") {
-                if let Some(id) = known_theme(id) {
-                    let _ = fs::write(&theme_file, id);
-                }
-            } else if let Some(cmd) = parse_command(msg) {
-                let _ = proxy.send_event(cmd);
+            let from_discord = is_in_app(&req.uri().to_string());
+            let body = req.into_body();
+            if from_discord && !body.starts_with("internal:") {
+                let _ = proxy.send_event(body);
             }
         })
         .with_initialization_script(&chrome_script);
@@ -235,6 +236,13 @@ fn main() -> wry::Result<()> {
 
     let webview = builder.build(&window)?;
 
+    let theme_file = theme_path(&data_dir);
+    let accounts_file = data_dir.join(accounts::FILE_NAME);
+    let mut saved_accounts = accounts::load(&accounts_file);
+    // The account being switched to. It is filled in once Discord's login page loads.
+    let mut pending_login: Option<accounts::Account> = None;
+    let later_proxy = event_loop.create_proxy();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -243,20 +251,110 @@ fn main() -> wry::Result<()> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-            Event::UserEvent(cmd) => match cmd {
-                WindowCommand::Drag => {
-                    let _ = window.drag_window();
+            Event::UserEvent(msg) => {
+                if msg == LOGIN_CONTINUE {
+                    let _ = webview.load_url(LOGIN_URL);
+                } else if let Some(id) = msg.strip_prefix("theme:") {
+                    if let Some(id) = known_theme(id) {
+                        let _ = fs::write(&theme_file, id);
+                    }
+                } else if let Some(request) = accounts::parse_request(&msg) {
+                    handle_account(
+                        request,
+                        &mut saved_accounts,
+                        &accounts_file,
+                        &mut pending_login,
+                        &later_proxy,
+                        &webview,
+                    );
+                } else if let Some(cmd) = parse_command(&msg) {
+                    match cmd {
+                        WindowCommand::Drag => {
+                            let _ = window.drag_window();
+                        }
+                        WindowCommand::Minimize => window.set_minimized(true),
+                        WindowCommand::Maximize => window.set_maximized(!window.is_maximized()),
+                        WindowCommand::Close => *control_flow = ControlFlow::Exit,
+                    }
                 }
-                WindowCommand::Minimize => window.set_minimized(true),
-                WindowCommand::Maximize => window.set_maximized(!window.is_maximized()),
-                WindowCommand::Close => *control_flow = ControlFlow::Exit,
-            },
+            }
             _ => {}
         }
 
         // Keep the window, webview and web context alive for the loop's lifetime.
         let _ = (&window, &webview, &web_context);
     });
+}
+
+// Runs an account request from the page, then sends the page the new list.
+fn handle_account(
+    request: accounts::Request,
+    saved: &mut Vec<accounts::Account>,
+    file: &Path,
+    pending: &mut Option<accounts::Account>,
+    later: &EventLoopProxy<String>,
+    webview: &WebView,
+) {
+    let mut error = None;
+    let mut added = false;
+    match request {
+        accounts::Request::List => {}
+        accounts::Request::LoginPage => {
+            // Discord's login form is showing. Fill it in, then submit it.
+            if let Some(account) = pending.take() {
+                let creds = json!({ "email": account.email, "password": account.password });
+                let _ = webview.evaluate_script(&format!("window.__nebulaFill({creds});"));
+            }
+            return;
+        }
+        accounts::Request::Add {
+            name,
+            email,
+            password,
+        } => match accounts::add(saved, &name, &email, &password) {
+            Ok(_) => {
+                added = true;
+                if let Err(e) = accounts::save(file, saved) {
+                    eprintln!("could not save accounts: {e}");
+                    error = Some("Could not save the account.");
+                }
+            }
+            Err(message) => error = Some(message),
+        },
+        accounts::Request::Remove { id } => {
+            if accounts::remove(saved, &id) {
+                if let Err(e) = accounts::save(file, saved) {
+                    eprintln!("could not save accounts: {e}");
+                    error = Some("Could not save the account list.");
+                }
+            }
+        }
+        accounts::Request::Switch { id } => {
+            // Sign the current session out, then open Discord's login page. The
+            // page asks for the pending account, and its form gets filled in.
+            // The webview has no localStorage, so sign out by clearing its browsing
+            // data. WebView2 does that asynchronously, so the login page opens after
+            // a short wait (see "internal:account-continue" in the event loop).
+            if let Some(account) = saved.iter().find(|a| a.id == id) {
+                *pending = Some(account.clone());
+                if let Err(e) = webview.clear_all_browsing_data() {
+                    eprintln!("could not clear browsing data: {e}");
+                }
+                let later = later.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let _ = later.send_event(LOGIN_CONTINUE.to_owned());
+                });
+            }
+            return;
+        }
+    }
+
+    let list = accounts::public_json(saved);
+    let error = serde_json::to_string(&error).unwrap_or_else(|_| "null".into());
+    let _ = webview.evaluate_script(&format!(
+        "window.__nebulaSetAccounts({{accounts:{list},error:{error},added:{added}}});"
+    ));
 }
 
 #[cfg(test)]

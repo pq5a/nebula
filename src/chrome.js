@@ -56,13 +56,36 @@
     "#nb-modal .nb-name { margin:10px 2px 2px; font-weight:700; font-size:14px; }",
     "#nb-modal .nb-blurb { margin:0 2px; color:var(--nb-muted); font-size:11.5px; }",
     "#nb-modal .nb-check { position:absolute; top:18px; right:18px; width:20px; height:20px; border-radius:50%; background:var(--card-accent); color:#0b0716; display:none; place-items:center; font-size:12px; font-weight:800; box-shadow:0 0 12px var(--card-glow); }",
-    "#nb-modal .nb-card.active .nb-check { display:grid; }"
+    "#nb-modal .nb-card.active .nb-check { display:grid; }",
+    "#nb-titlebar button.nb-account { width:38px; }",
+    "#nb-titlebar .nb-avatar { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--nb-glow); color:var(--nb-text); box-shadow:inset 0 0 0 1px var(--nb-glow); }",
+    "#nb-titlebar .nb-avatar svg { width:13px; height:13px; }",
+    "#nb-accounts { position:fixed; top:40px; right:8px; z-index:2147483646; width:280px; display:none; flex-direction:column; background:var(--nb-panel); color:var(--nb-text); border-radius:12px; border:1px solid var(--nb-glow); box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 30px var(--nb-glow); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; overflow:hidden; }",
+    "#nb-accounts.open { display:flex; animation:nb-in .15s ease-out; }",
+    "#nb-accounts .nb-acc-head { padding:12px 14px 8px; font-weight:700; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--nb-muted); }",
+    "#nb-accounts .nb-acc-empty { padding:4px 14px 12px; color:var(--nb-muted); font-size:12px; }",
+    "#nb-accounts .nb-acc-row { display:flex; align-items:center; gap:8px; padding:4px 6px 4px 8px; }",
+    "#nb-accounts .nb-acc-switch { all:unset; flex:1; display:flex; align-items:center; gap:10px; min-width:0; padding:7px 6px; border-radius:8px; cursor:pointer; }",
+    "#nb-accounts .nb-acc-switch:hover { background:rgba(255,255,255,.08); }",
+    "#nb-accounts .nb-acc-letter { width:26px; height:26px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--nb-accent); color:#0b0716; font-weight:800; font-size:12px; }",
+    "#nb-accounts .nb-acc-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }",
+    "#nb-accounts .nb-acc-remove { all:unset; cursor:pointer; color:var(--nb-muted); padding:4px 7px; border-radius:6px; font-size:13px; }",
+    "#nb-accounts .nb-acc-remove:hover { color:#fff; background:#e81123; }",
+    "#nb-accounts .nb-acc-add { border-top:1px solid rgba(255,255,255,.07); padding:12px 14px 14px; display:flex; flex-direction:column; gap:8px; }",
+    "#nb-accounts .nb-acc-hint { color:var(--nb-muted); font-size:11.5px; }",
+    "#nb-accounts .nb-acc-form { display:flex; gap:6px; }",
+    "#nb-accounts input { all:unset; box-sizing:border-box; flex:1; min-width:0; padding:7px 10px; border-radius:8px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:var(--nb-text); }",
+    "#nb-accounts input:focus { border-color:var(--nb-accent); }",
+    "#nb-accounts .nb-acc-save { all:unset; cursor:pointer; padding:7px 12px; border-radius:8px; background:var(--nb-accent); color:#0b0716; font-weight:700; }",
+    "#nb-accounts .nb-acc-save:hover { filter:brightness(1.1); }",
+    "#nb-accounts .nb-acc-error { color:#fca5a5; font-size:12px; min-height:0; }"
   ].join("\n");
 
   var ICON = {
     min: '<svg viewBox="0 0 12 12"><path d="M1.5 6h9"/></svg>',
     max: '<svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/></svg>',
     close: '<svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8"/></svg>',
+    user: '<svg viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c.6-2.6 2.6-4 5.2-4s4.6 1.4 5.2 4"/></svg>',
     gear: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.3"/><path d="M8 1.6v2.1M8 12.3v2.1M1.6 8h2.1M12.3 8h2.1M3.4 3.4l1.5 1.5M11.1 11.1l1.5 1.5M3.4 12.6l1.5-1.5M11.1 4.9l1.5-1.5"/></svg>'
   };
 
@@ -185,6 +208,7 @@
   // Coalesces bursts of Discord DOM changes into one update per frame.
   var scheduled = 0;
   var scheduledFresh = false;
+  var styleObserver = null;
   function schedule(fresh) {
     scheduledFresh = scheduledFresh || fresh;
     if (scheduled) return;
@@ -193,6 +217,9 @@
       scheduled = 0;
       scheduledFresh = false;
       retheme(current, freshNow);
+      // Our own writes to the root's inline style would otherwise queue
+      // another pass, and each pass writes again. Drop those records.
+      if (styleObserver) styleObserver.takeRecords();
     });
   }
 
@@ -255,7 +282,10 @@
       if (card) applyTheme(THEMES.filter(function (t) { return t.id === card.dataset.id; })[0], true);
     });
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        close();
+        if (accountsPanel) accountsPanel.close();
+      }
     });
     overlay.open = function () {
       markActive();
@@ -264,11 +294,175 @@
     return overlay;
   }
 
+  // Account dropdown. Saved accounts hold an email and password, kept by Rust
+  // (encrypted). The page only sees names and emails. A switch opens Discord's
+  // login page, and window.__nebulaFill fills in its form.
+  var accountList = [];
+  var accountsPanel = null;
+
+  function el(tag, cls) {
+    var node = document.createElement(tag);
+    node.className = cls;
+    return node;
+  }
+
+  // Sets a React-controlled input's value so the framework sees the change.
+  function setInputValue(input, value) {
+    var setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  // Called by Rust on the login page with the chosen account. The form may
+  // render late, so it retries for a few seconds, then submits.
+  window.__nebulaFill = function (creds) {
+    var tries = 0;
+    // Discord's form only: skip Nebula's own account inputs.
+    function find(selector) {
+      var all = document.querySelectorAll(selector);
+      for (var i = 0; i < all.length; i++) {
+        if (!all[i].closest("#nb-accounts")) return all[i];
+      }
+      return null;
+    }
+    var timer = setInterval(function () {
+      tries++;
+      var email = find('input[name="email"]') || find('input[type="email"]');
+      var pass = find('input[name="password"]') || find('input[type="password"]');
+      if (email && pass) {
+        clearInterval(timer);
+        setInputValue(email, creds.email);
+        setInputValue(pass, creds.password);
+        var submit = document.querySelector('button[type="submit"]');
+        if (submit) setTimeout(function () { submit.click(); }, 150);
+      } else if (tries > 40) {
+        clearInterval(timer);
+      }
+    }, 250);
+  };
+
+  function buildAccounts() {
+    var panel = el("div", "");
+    panel.id = "nb-accounts";
+    panel.innerHTML =
+      '<div class="nb-acc-head">Accounts</div>' +
+      '<div class="nb-acc-list"></div>' +
+      '<div class="nb-acc-add">' +
+      '<div class="nb-acc-form"><input class="nb-in-name" type="text" maxlength="32" placeholder="Account name" spellcheck="false"></div>' +
+      '<div class="nb-acc-form"><input class="nb-in-email" type="email" maxlength="254" placeholder="Email" spellcheck="false" autocomplete="off"></div>' +
+      '<div class="nb-acc-form"><input class="nb-in-pass" type="password" maxlength="1024" placeholder="Password" autocomplete="off">' +
+      '<button class="nb-acc-save">Save</button></div><div class="nb-acc-error"></div></div>';
+    document.body.appendChild(panel);
+
+    var nameInput = panel.querySelector(".nb-in-name");
+    var emailInput = panel.querySelector(".nb-in-email");
+    var passInput = panel.querySelector(".nb-in-pass");
+    var errorBox = panel.querySelector(".nb-acc-error");
+
+    function setError(text) {
+      errorBox.textContent = text || "";
+    }
+
+    function renderList() {
+      var box = panel.querySelector(".nb-acc-list");
+      box.textContent = "";
+      if (!accountList.length) {
+        var empty = el("div", "nb-acc-empty");
+        empty.textContent = "No saved accounts yet.";
+        box.appendChild(empty);
+        return;
+      }
+      accountList.forEach(function (a) {
+        var row = el("div", "nb-acc-row");
+        var pick = el("button", "nb-acc-switch");
+        pick.dataset.act = "switch";
+        pick.dataset.id = a.id;
+        pick.title = "Switch to " + a.name;
+        var letter = el("span", "nb-acc-letter");
+        letter.textContent = (a.name.charAt(0) || "?").toUpperCase();
+        var name = el("span", "nb-acc-name");
+        name.textContent = a.name;
+        pick.appendChild(letter);
+        pick.appendChild(name);
+        var remove = el("button", "nb-acc-remove");
+        remove.dataset.act = "remove";
+        remove.dataset.id = a.id;
+        remove.title = "Remove " + a.name;
+        remove.textContent = "✕";
+        row.appendChild(pick);
+        row.appendChild(remove);
+        box.appendChild(row);
+      });
+    }
+
+    // Called by Rust after every account change, with the new list.
+    window.__nebulaSetAccounts = function (status) {
+      accountList = status.accounts || [];
+      setError(status.error);
+      if (status.added) {
+        nameInput.value = "";
+        emailInput.value = "";
+        passInput.value = "";
+      }
+      renderList();
+    };
+
+    function save() {
+      var name = nameInput.value.trim();
+      var email = emailInput.value.trim();
+      var password = passInput.value;
+      if (!name) return setError("Enter a name for this account.");
+      if (!email) return setError("Enter the email for this account.");
+      if (!password) return setError("Enter the password for this account.");
+      setError("");
+      send(JSON.stringify({ op: "add", name: name, email: email, password: password }));
+    }
+
+    panel.addEventListener("click", function (e) {
+      var button = e.target.closest("button");
+      if (e.target.closest(".nb-acc-save")) return save();
+      if (!button || !button.dataset.id) return;
+      if (button.dataset.act === "switch") {
+        close();
+        send(JSON.stringify({ op: "switch", id: button.dataset.id }));
+      } else if (button.dataset.act === "remove") {
+        send(JSON.stringify({ op: "remove", id: button.dataset.id }));
+      }
+    });
+    panel.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target.tagName === "INPUT") save();
+    });
+
+    function close() {
+      panel.classList.remove("open");
+    }
+    function open() {
+      setError("");
+      panel.classList.add("open");
+      send(JSON.stringify({ op: "list" }));
+    }
+    // Clicks outside the panel and its button close it.
+    document.addEventListener("mousedown", function (e) {
+      if (!panel.classList.contains("open")) return;
+      if (panel.contains(e.target) || e.target.closest(".nb-account")) return;
+      close();
+    });
+    panel.open = open;
+    panel.close = close;
+    panel.toggle = function () {
+      if (panel.classList.contains("open")) close();
+      else open();
+    };
+    return panel;
+  }
+
   function buildTitlebar(overlay) {
     var bar = document.createElement("div");
     bar.id = "nb-titlebar";
     bar.innerHTML =
       '<div class="nb-brand"><span class="nb-dot"></span>Nebula</div><div class="nb-spacer"></div>' +
+      '<button class="nb-account" data-act="accounts" title="Accounts"><span class="nb-avatar">' + ICON.user + "</span></button>" +
       '<button class="nb-gear" data-act="settings" title="Nebula settings">' + ICON.gear + "</button>" +
       '<button data-act="minimize" title="Minimize">' + ICON.min + "</button>" +
       '<button data-act="maximize" title="Maximize">' + ICON.max + "</button>" +
@@ -283,6 +477,7 @@
       var button = e.target.closest("button");
       if (!button) return;
       if (button.dataset.act === "settings") overlay.open();
+      else if (button.dataset.act === "accounts") accountsPanel.toggle();
       else send(button.dataset.act);
     });
   }
@@ -295,9 +490,14 @@
     document.head.appendChild(style);
 
     var overlay = buildSettings();
+    accountsPanel = buildAccounts();
     buildTitlebar(overlay);
     root.setAttribute("data-nb-theme", current.id);
     retheme(current, true);
+    // Ask Rust for the saved accounts. It answers through __nebulaSetAccounts.
+    send(JSON.stringify({ op: "list" }));
+    // On Discord's login page, ask Rust for a pending account to fill in.
+    if (location.pathname.indexOf("/login") === 0) send(JSON.stringify({ op: "login-page" }));
 
     // Discord defines its palette in stylesheets that can arrive after this
     // runs and after load. Those are picked up here, so colors never fall back
@@ -307,13 +507,21 @@
       .observe(root, { attributes: true, attributeFilter: ["class"] });
     // Our overrides live in the root's inline style. If anything replaces that
     // attribute (window resize or layout changes can do this), the overrides are
-    // lost, so reapply them now. Our own writes trigger this too, but a retheme
-    // with nothing to change writes nothing, so it settles.
-    new MutationObserver(function () { schedule(false); })
-      .observe(root, { attributes: true, attributeFilter: ["style"] });
-    new MutationObserver(function () { schedule(false); })
-      .observe(document.head, { childList: true, subtree: true });
-    window.addEventListener("load", function () { schedule(false); });
+    // lost, so reapply them now. The scheduled pass drops the records of its own
+    // writes, so this does not loop.
+    styleObserver = new MutationObserver(function () { schedule(false); });
+    styleObserver.observe(root, { attributes: true, attributeFilter: ["style"] });
+    // Only new stylesheets matter for the palette. Other head churn is ignored.
+    new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++) {
+        var nodes = records[i].addedNodes;
+        for (var j = 0; j < nodes.length; j++) {
+          var name = nodes[j].nodeName;
+          if (name === "STYLE" || name === "LINK") return schedule(true);
+        }
+      }
+    }).observe(document.head, { childList: true });
+    window.addEventListener("load", function () { schedule(true); });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build, { once: true });

@@ -24,6 +24,16 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
   Ember). A theme recolors the whole Discord client: backgrounds, text, and the
   brand accent. Lightness is kept from Discord's palette, and light text is lifted
   to at least 4.5:1 contrast against the surfaces. Red, green and yellow are unchanged.
+- An account button (person icon) sits in the top-right title bar. It opens a
+  dropdown of saved accounts. To add one, enter a name, email and password and press
+  Save. To switch, click the account: Nebula signs out the current session and opens
+  Discord's login page with that email and password filled in, then submits the form.
+  Discord performs the login itself, so any captcha or 2FA prompt still appears
+  and must be completed by hand.
+- Saved accounts are kept in `%APPDATA%\Nebula\accounts.dat`, encrypted with Windows
+  DPAPI so only your Windows user can read them. Passwords are never sent back to
+  the page. Anyone with access to your Windows account can decrypt them, so only
+  save accounts you control.
 - The chosen theme is saved to `%APPDATA%\Nebula\theme.txt`. The webview has no
   localStorage, so the file is read at startup and injected before the page loads.
   The window and webview use the theme's background color until Discord paints, so
@@ -46,6 +56,8 @@ The build does not download anything.
 
 - `src/main.rs` — window, webview setup, navigation rules, Firefox handoff.
 - `src/vencord.rs` — Vencord download, digest verification, cache, and page script.
+- `src/accounts.rs` — saved accounts, DPAPI encryption, and account requests from the page.
+- `src/chrome.js` — title bar, settings, account dropdown, and theme recoloring (injected).
 - `build.rs` — embeds the Windows icon.
 - `vendor/` — third-party Vencord files (fallback copy).
 - `assets/icon.ico`, `Logo.png` — application icon and logo.

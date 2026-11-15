@@ -13,6 +13,10 @@ serde_json = "1"
 sha2 = "0.10"
 native-tls = "0.2"
 
+# Windows DPAPI, used to encrypt the saved account tokens. Already in the lockfile.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
 [build-dependencies]
 winres = "0.1"
 
