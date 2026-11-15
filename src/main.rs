@@ -125,10 +125,15 @@ fn parse_command(msg: &str) -> Option<WindowCommand> {
 
 // Built-in themes: id, and the background shown before Discord paints. The
 // full palettes live in src/chrome.js.
-const THEMES: [(&str, RGBA); 3] = [
+const THEMES: [(&str, RGBA); 8] = [
     ("nebula", (0x0d, 0x0a, 0x1f, 255)),
     ("midnight", (0x05, 0x08, 0x0f, 255)),
     ("ember", (0x14, 0x0a, 0x08, 255)),
+    ("aurora", (0x07, 0x13, 0x0f, 255)),
+    ("rose", (0x17, 0x0a, 0x12, 255)),
+    ("forest", (0x09, 0x12, 0x0a, 255)),
+    ("solar", (0x15, 0x11, 0x0a, 255)),
+    ("graphite", (0x0b, 0x0c, 0x0f, 255)),
 ];
 
 fn known_theme(id: &str) -> Option<&'static str> {
@@ -152,6 +157,21 @@ fn saved_theme(data_dir: &Path) -> &'static str {
         .ok()
         .and_then(|s| known_theme(s.trim()))
         .unwrap_or(THEMES[0].0)
+}
+
+// Low-power mode (10 FPS while tabbed out) is saved as "on" or "off". It is on
+// unless the file says "off", so a missing or damaged file keeps the default.
+fn throttle_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("throttle.txt")
+}
+
+fn parse_throttle(text: &str) -> bool {
+    text.trim() != "off"
+}
+
+fn saved_throttle(data_dir: &Path) -> bool {
+    fs::read_to_string(throttle_path(data_dir))
+        .map_or(true, |s| parse_throttle(&s))
 }
 
 fn main() -> wry::Result<()> {
@@ -181,7 +201,10 @@ fn main() -> wry::Result<()> {
         .expect("failed to create window");
 
     let mut web_context = WebContext::new(Some(data_dir.clone()));
-    let chrome_script = format!("window.__nebulaTheme = \"{theme}\";\n{CHROME_SCRIPT}");
+    let throttle = saved_throttle(&data_dir);
+    let chrome_script = format!(
+        "window.__nebulaTheme = \"{theme}\";\nwindow.__nebulaThrottle = {throttle};\n{CHROME_SCRIPT}"
+    );
 
     let mut builder = WebViewBuilder::with_web_context(&mut web_context)
         .with_url(DISCORD_URL)
@@ -237,6 +260,7 @@ fn main() -> wry::Result<()> {
     let webview = builder.build(&window)?;
 
     let theme_file = theme_path(&data_dir);
+    let throttle_file = throttle_path(&data_dir);
     let accounts_file = data_dir.join(accounts::FILE_NAME);
     let mut saved_accounts = accounts::load(&accounts_file);
     // The account being switched to. It is filled in once Discord's login page loads.
@@ -257,6 +281,16 @@ fn main() -> wry::Result<()> {
                 } else if let Some(id) = msg.strip_prefix("theme:") {
                     if let Some(id) = known_theme(id) {
                         let _ = fs::write(&theme_file, id);
+                    }
+                } else if let Some(value) = msg.strip_prefix("throttle:") {
+                    match value {
+                        "on" => {
+                            let _ = fs::write(&throttle_file, "on");
+                        }
+                        "off" => {
+                            let _ = fs::write(&throttle_file, "off");
+                        }
+                        _ => {}
                     }
                 } else if let Some(request) = accounts::parse_request(&msg) {
                     handle_account(
@@ -359,12 +393,24 @@ fn handle_account(
 
 #[cfg(test)]
 mod tests {
-    use super::{http_host, is_in_app, is_web_url, known_theme, parse_command, WindowCommand};
+    use super::{
+        http_host, is_in_app, is_web_url, known_theme, parse_command, parse_throttle, WindowCommand,
+    };
+
+    #[test]
+    fn throttle_is_on_unless_turned_off() {
+        assert!(parse_throttle(""));
+        assert!(parse_throttle("on\n"));
+        assert!(parse_throttle("garbage"));
+        assert!(!parse_throttle("off\n"));
+    }
 
     #[test]
     fn only_built_in_themes_are_saved() {
         assert_eq!(known_theme("midnight"), Some("midnight"));
         assert_eq!(known_theme("ember"), Some("ember"));
+        assert_eq!(known_theme("graphite"), Some("graphite"));
+        assert_eq!(known_theme("solar"), Some("solar"));
         assert_eq!(known_theme("../evil"), None);
         assert_eq!(known_theme("nebula\";alert(1)//"), None);
     }

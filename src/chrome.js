@@ -1,5 +1,6 @@
-// Nebula window chrome: custom title bar, window controls and the settings
-// modal with theme picker. Injected before every page; runs on discord.com only.
+// Nebula window chrome: custom title bar, window controls, the settings menu
+// (theme and low-power mode) and the account dropdown. Injected before every
+// page; runs on discord.com only.
 (function () {
   "use strict";
   var host = location.hostname;
@@ -11,58 +12,63 @@
   // accentHue: hue for Discord's blurple ramp (brand color). Lightness is kept
   // from Discord's own palette, so text contrast matches the stock theme.
   var THEMES = [
-    { id: "nebula", name: "Nebula", blurb: "Deep violet with a soft glow", bg: "#0d0a1f", panel: "#15112e", accent: "#a78bfa", hue: 258, tint: 55, accentHue: 262 },
-    { id: "midnight", name: "Midnight", blurb: "Cold blue, crisp edges", bg: "#05080f", panel: "#0a1322", accent: "#38bdf8", hue: 212, tint: 50, accentHue: 198 },
-    { id: "ember", name: "Ember", blurb: "Warm dark with orange heat", bg: "#140a08", panel: "#22120d", accent: "#fb923c", hue: 22, tint: 48, accentHue: 24 }
+    { id: "nebula", name: "Nebula", blurb: "Deep violet with a soft glow", bg: "#0d0a1f", panel: "#15112e", accent: "#a78bfa", text: "#ede9ff", muted: "#8b82b5", hue: 258, tint: 55, accentHue: 262 },
+    { id: "midnight", name: "Midnight", blurb: "Cold blue, crisp edges", bg: "#05080f", panel: "#0a1322", accent: "#38bdf8", text: "#dbeafe", muted: "#64748b", hue: 212, tint: 50, accentHue: 198 },
+    { id: "ember", name: "Ember", blurb: "Warm dark with orange heat", bg: "#140a08", panel: "#22120d", accent: "#fb923c", text: "#ffedd5", muted: "#9a6b57", hue: 22, tint: 48, accentHue: 24 },
+    { id: "aurora", name: "Aurora", blurb: "Teal green, cool and calm", bg: "#07130f", panel: "#0c1d18", accent: "#34d399", text: "#d9fbeb", muted: "#7aa893", hue: 165, tint: 50, accentHue: 160 },
+    { id: "rose", name: "Rose", blurb: "Soft pink on deep plum", bg: "#170a12", panel: "#251020", accent: "#f472b6", text: "#ffe4f1", muted: "#b38a9e", hue: 330, tint: 50, accentHue: 330 },
+    { id: "forest", name: "Forest", blurb: "Moss green, earthy and quiet", bg: "#09120a", panel: "#0f1d12", accent: "#84cc16", text: "#e6f5d9", muted: "#86a374", hue: 105, tint: 45, accentHue: 100 },
+    { id: "solar", name: "Solar", blurb: "Gold on warm charcoal", bg: "#15110a", panel: "#221b0e", accent: "#fbbf24", text: "#fef3c7", muted: "#b5a074", hue: 42, tint: 50, accentHue: 40 },
+    { id: "graphite", name: "Graphite", blurb: "Neutral grey, no colour cast", bg: "#0b0c0f", panel: "#16181d", accent: "#94a3b8", text: "#e2e8f0", muted: "#7b8594", hue: 215, tint: 8, accentHue: 215 }
   ];
 
+  // Built from THEMES so the menu, the page styles and the palette never drift apart.
+  var THEME_CSS = THEMES.map(function (t) {
+    return '[data-nb-theme="' + t.id + '"] { --nb-bg:' + t.bg + "; --nb-panel:" + t.panel + "; --nb-accent:" + t.accent +
+      "; --nb-text:" + t.text + "; --nb-muted:" + t.muted + "; --nb-glow:" + t.accent + '59; }';
+  });
+
   var STYLE = [
-    ":root { --nb-bg:#0d0a1f; --nb-panel:#15112e; --nb-accent:#a78bfa; --nb-text:#ede9ff; --nb-muted:#8b82b5; --nb-glow:rgba(167,139,250,.35); }",
-    '[data-nb-theme="midnight"] { --nb-bg:#05080f; --nb-panel:#0a1322; --nb-accent:#38bdf8; --nb-text:#dbeafe; --nb-muted:#64748b; --nb-glow:rgba(56,189,248,.30); }',
-    '[data-nb-theme="ember"] { --nb-bg:#140a08; --nb-panel:#22120d; --nb-accent:#fb923c; --nb-text:#ffedd5; --nb-muted:#9a6b57; --nb-glow:rgba(251,146,60,.30); }',
+    ":root { --nb-bg:#0d0a1f; --nb-panel:#15112e; --nb-accent:#a78bfa; --nb-text:#ede9ff; --nb-muted:#8b82b5; --nb-glow:#a78bfa59; }"
+  ].concat(THEME_CSS, [
     "#nb-titlebar { position:fixed; top:0; left:0; right:0; height:36px; z-index:2147483647; display:flex; align-items:center;",
-    "  background:linear-gradient(90deg,var(--nb-bg),var(--nb-panel)); border-bottom:1px solid var(--nb-glow);",
-    "  box-shadow:0 2px 14px var(--nb-glow); color:var(--nb-text); user-select:none; font:600 12px/1 'Segoe UI Variable','Segoe UI',sans-serif; }",
+    "  background:var(--nb-panel); border-bottom:1px solid var(--nb-glow); color:var(--nb-text); user-select:none; font:600 12px/1 'Segoe UI Variable','Segoe UI',sans-serif; }",
     "#nb-titlebar .nb-brand { display:flex; align-items:center; gap:9px; padding:0 14px; height:100%; letter-spacing:.12em; text-transform:uppercase; font-size:11px; }",
-    "#nb-titlebar .nb-dot { width:8px; height:8px; border-radius:50%; background:var(--nb-accent); box-shadow:0 0 10px var(--nb-accent); }",
+    "#nb-titlebar .nb-dot { width:8px; height:8px; border-radius:50%; background:var(--nb-accent); }",
     "#nb-titlebar .nb-spacer { flex:1; height:100%; }",
     "#nb-titlebar button { all:unset; box-sizing:border-box; width:46px; height:36px; display:grid; place-items:center; color:var(--nb-muted); cursor:default; }",
-    "#nb-titlebar button.nb-gear { width:42px; }",
+    "#nb-titlebar button.nb-settings { width:42px; }",
     "#nb-titlebar button:hover { background:rgba(255,255,255,.08); color:var(--nb-text); }",
+    "#nb-titlebar button.nb-settings[aria-expanded=\"true\"] { background:rgba(255,255,255,.10); color:var(--nb-text); }",
     "#nb-titlebar button.nb-close:hover { background:#e81123; color:#fff; }",
     "#nb-titlebar svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; }",
-    "#nb-titlebar .nb-gear svg { width:15px; height:15px; }",
+    "#nb-titlebar .nb-settings svg { width:15px; height:15px; }",
     "html body #app-mount { padding-top:36px !important; box-sizing:border-box !important; }",
-    "#nb-overlay { position:fixed; inset:0; z-index:2147483646; display:none; align-items:center; justify-content:center; background:rgba(3,2,10,.7); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; }",
-    "#nb-overlay.open { display:flex; animation:nb-in .18s ease-out; }",
-    "@keyframes nb-in { from { opacity:0; transform:scale(.98); } to { opacity:1; transform:none; } }",
-    "#nb-modal { width:580px; max-width:92vw; background:var(--nb-panel); color:var(--nb-text); border-radius:16px; border:1px solid var(--nb-glow); box-shadow:0 24px 70px rgba(0,0,0,.6),0 0 46px var(--nb-glow); overflow:hidden; }",
-    "#nb-modal header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid rgba(255,255,255,.06); }",
-    "#nb-modal h2 { margin:0; font-size:16px; font-weight:700; letter-spacing:.02em; }",
-    "#nb-modal .nb-close-modal { all:unset; cursor:pointer; color:var(--nb-muted); font-size:18px; line-height:1; padding:4px 6px; border-radius:6px; }",
-    "#nb-modal .nb-close-modal:hover { color:var(--nb-text); background:rgba(255,255,255,.08); }",
-    "#nb-modal .nb-tabs { display:flex; gap:6px; padding:12px 22px 0; }",
-    "#nb-modal .nb-tab { padding:7px 14px; border-radius:999px; color:var(--nb-accent); background:rgba(255,255,255,.06); font-weight:600; font-size:12px; }",
-    "#nb-modal .nb-hint { margin:14px 22px 0; color:var(--nb-muted); font-size:12px; }",
-    "#nb-modal .nb-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:14px 22px 22px; }",
-    "#nb-modal .nb-card { position:relative; cursor:pointer; padding:10px; border-radius:14px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); transition:transform .12s,border-color .12s; }",
-    "#nb-modal .nb-card:hover { transform:translateY(-3px); border-color:var(--card-accent); }",
-    "#nb-modal .nb-card.active { border-color:var(--card-accent); box-shadow:0 0 0 1px var(--card-accent),0 10px 28px rgba(0,0,0,.45),0 0 26px var(--card-glow); }",
-    "#nb-modal .nb-preview { position:relative; height:92px; border-radius:9px; overflow:hidden; background:var(--card-bg); }",
-    "#nb-modal .nb-preview::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 80% 15%,var(--card-accent),transparent 55%); opacity:.55; }",
-    "#nb-modal .nb-preview .nb-bar { position:absolute; left:8px; right:8px; top:8px; height:8px; border-radius:4px; background:var(--card-panel); }",
-    "#nb-modal .nb-preview .nb-line { position:absolute; left:8px; height:6px; border-radius:3px; background:rgba(255,255,255,.14); }",
-    "#nb-modal .nb-preview .nb-dot { position:absolute; left:8px; bottom:10px; width:22px; height:22px; border-radius:50%; background:var(--card-accent); box-shadow:0 0 14px var(--card-accent); }",
-    "#nb-modal .nb-name { margin:10px 2px 2px; font-weight:700; font-size:14px; }",
-    "#nb-modal .nb-blurb { margin:0 2px; color:var(--nb-muted); font-size:11.5px; }",
-    "#nb-modal .nb-check { position:absolute; top:18px; right:18px; width:20px; height:20px; border-radius:50%; background:var(--card-accent); color:#0b0716; display:none; place-items:center; font-size:12px; font-weight:800; box-shadow:0 0 12px var(--card-glow); }",
-    "#nb-modal .nb-card.active .nb-check { display:grid; }",
+    "@keyframes nb-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }",
+    "#nb-menu, #nb-accounts { position:fixed; top:40px; z-index:2147483646; display:none; flex-direction:column; background:var(--nb-panel); color:var(--nb-text); border-radius:12px; border:1px solid var(--nb-glow); box-shadow:0 12px 32px rgba(0,0,0,.5); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; overflow:hidden; }",
+    "#nb-menu { left:8px; width:264px; }",
+    "#nb-accounts { right:8px; width:280px; }",
+    "#nb-menu.open, #nb-accounts.open { display:flex; animation:nb-in .12s ease-out; }",
+    "#nb-menu .nb-m-head, #nb-accounts .nb-acc-head { padding:12px 14px 6px; font-weight:700; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--nb-muted); }",
+    "#nb-menu .nb-m-list { display:flex; flex-direction:column; padding:0 6px 6px; }",
+    "#nb-menu .nb-opt { all:unset; cursor:pointer; display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:8px; }",
+    "#nb-menu .nb-opt:hover { background:rgba(255,255,255,.08); }",
+    "#nb-menu .nb-swatch { width:22px; height:22px; flex:none; border-radius:7px; background:var(--sw-bg); box-shadow:inset 0 0 0 2px var(--sw-accent); }",
+    "#nb-menu .nb-opt-text { flex:1; min-width:0; }",
+    "#nb-menu .nb-opt-name { font-weight:600; }",
+    "#nb-menu .nb-opt-blurb { color:var(--nb-muted); font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }",
+    "#nb-menu .nb-tick { width:16px; color:var(--sw-accent); font-weight:800; text-align:center; visibility:hidden; }",
+    "#nb-menu .nb-opt.active .nb-tick { visibility:visible; }",
+    "#nb-menu .nb-m-sep { height:1px; background:rgba(255,255,255,.07); margin:2px 0 0; }",
+    "#nb-menu .nb-m-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px 4px; cursor:pointer; }",
+    "#nb-menu .nb-m-hint { margin:0; padding:0 14px 12px; color:var(--nb-muted); font-size:11.5px; }",
+    "#nb-menu .nb-toggle { appearance:none; width:34px; height:18px; flex:none; border-radius:999px; background:rgba(255,255,255,.16); position:relative; cursor:pointer; margin:0; }",
+    "#nb-menu .nb-toggle::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--nb-text); transition:left .15s; }",
+    "#nb-menu .nb-toggle:checked { background:var(--nb-accent); }",
+    "#nb-menu .nb-toggle:checked::after { left:18px; background:#0b0716; }",
     "#nb-titlebar button.nb-account { width:38px; }",
-    "#nb-titlebar .nb-avatar { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--nb-glow); color:var(--nb-text); box-shadow:inset 0 0 0 1px var(--nb-glow); }",
+    "#nb-titlebar .nb-avatar { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--nb-glow); color:var(--nb-text); }",
     "#nb-titlebar .nb-avatar svg { width:13px; height:13px; }",
-    "#nb-accounts { position:fixed; top:40px; right:8px; z-index:2147483646; width:280px; display:none; flex-direction:column; background:var(--nb-panel); color:var(--nb-text); border-radius:12px; border:1px solid var(--nb-glow); box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 30px var(--nb-glow); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; overflow:hidden; }",
-    "#nb-accounts.open { display:flex; animation:nb-in .15s ease-out; }",
-    "#nb-accounts .nb-acc-head { padding:12px 14px 8px; font-weight:700; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--nb-muted); }",
     "#nb-accounts .nb-acc-empty { padding:4px 14px 12px; color:var(--nb-muted); font-size:12px; }",
     "#nb-accounts .nb-acc-row { display:flex; align-items:center; gap:8px; padding:4px 6px 4px 8px; }",
     "#nb-accounts .nb-acc-switch { all:unset; flex:1; display:flex; align-items:center; gap:10px; min-width:0; padding:7px 6px; border-radius:8px; cursor:pointer; }",
@@ -79,7 +85,7 @@
     "#nb-accounts .nb-acc-save { all:unset; cursor:pointer; padding:7px 12px; border-radius:8px; background:var(--nb-accent); color:#0b0716; font-weight:700; }",
     "#nb-accounts .nb-acc-save:hover { filter:brightness(1.1); }",
     "#nb-accounts .nb-acc-error { color:#fca5a5; font-size:12px; min-height:0; }"
-  ].join("\n");
+  ]).join("\n");
 
   var ICON = {
     min: '<svg viewBox="0 0 12 12"><path d="M1.5 6h9"/></svg>',
@@ -92,6 +98,39 @@
   function send(cmd) {
     if (window.ipc) window.ipc.postMessage(cmd);
   }
+
+  // ---- Low-power mode -------------------------------------------------------
+  // While Nebula is tabbed out (window hidden or not focused), requestAnimationFrame
+  // callbacks run 10 times a second instead of at the display rate. Discord's
+  // animations and its own loops use rAF, so this cuts their work in the background.
+  // Set by Rust from the saved choice; on by default.
+  var throttleOn = window.__nebulaThrottle !== false;
+  var SLOW_MS = 100;
+  var nativeRaf = window.requestAnimationFrame.bind(window);
+  var nativeCaf = window.cancelAnimationFrame.bind(window);
+  var slowTimers = {};
+  var slowSeq = 0;
+  function tabbedOut() {
+    return document.hidden || !document.hasFocus();
+  }
+  window.requestAnimationFrame = function (cb) {
+    if (!throttleOn || !tabbedOut()) return nativeRaf(cb);
+    // Negative ids keep these apart from the browser's own frame request ids.
+    var id = --slowSeq;
+    slowTimers[id] = setTimeout(function () {
+      delete slowTimers[id];
+      cb(performance.now());
+    }, SLOW_MS);
+    return id;
+  };
+  window.cancelAnimationFrame = function (id) {
+    if (id < 0) {
+      clearTimeout(slowTimers[id]);
+      delete slowTimers[id];
+    } else {
+      nativeCaf(id);
+    }
+  };
 
   function rgbToHsl(r, g, b) {
     r /= 255; g /= 255; b /= 255;
@@ -241,9 +280,16 @@
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   }
 
+  // ---- Settings menu -------------------------------------------------------
+  var menu = null;
+  var accountsPanel = null;
+
   function markActive() {
-    document.querySelectorAll("#nb-modal .nb-card").forEach(function (card) {
-      card.classList.toggle("active", card.dataset.id === current.id);
+    if (!menu) return;
+    menu.querySelectorAll(".nb-opt").forEach(function (opt) {
+      var on = opt.dataset.id === current.id;
+      opt.classList.toggle("active", on);
+      opt.setAttribute("aria-checked", String(on));
     });
   }
 
@@ -255,56 +301,48 @@
     markActive();
   }
 
-  function cardHtml(t) {
-    return '<div class="nb-card" data-id="' + t.id + '" style="--card-bg:' + t.bg + ";--card-panel:" + t.panel +
-      ";--card-accent:" + t.accent + ";--card-glow:" + t.accent + '55">' +
-      '<div class="nb-preview"><div class="nb-bar"></div><div class="nb-line" style="top:26px;width:58%"></div>' +
-      '<div class="nb-line" style="top:40px;width:38%"></div><div class="nb-dot"></div></div>' +
-      '<span class="nb-check">&#10003;</span>' +
-      '<div class="nb-name">' + t.name + '</div><p class="nb-blurb">' + t.blurb + "</p></div>";
-  }
-
-  function buildSettings() {
-    var overlay = document.createElement("div");
-    overlay.id = "nb-overlay";
-    overlay.innerHTML =
-      '<div id="nb-modal" role="dialog" aria-label="Nebula settings">' +
-      '<header><h2>Nebula Settings</h2><button class="nb-close-modal" title="Close">&#10005;</button></header>' +
-      '<div class="nb-tabs"><span class="nb-tab">Themes</span></div>' +
-      '<p class="nb-hint">Pick a look for the Nebula window. Changes apply instantly.</p>' +
-      '<div class="nb-cards">' + THEMES.map(cardHtml).join("") + "</div></div>";
-    document.body.appendChild(overlay);
-
-    var close = function () { overlay.classList.remove("open"); };
-    overlay.addEventListener("click", function (e) {
-      if (e.target === overlay || e.target.closest(".nb-close-modal")) close();
-      var card = e.target.closest(".nb-card");
-      if (card) applyTheme(THEMES.filter(function (t) { return t.id === card.dataset.id; })[0], true);
-    });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        close();
-        if (accountsPanel) accountsPanel.close();
-      }
-    });
-    overlay.open = function () {
-      markActive();
-      overlay.classList.add("open");
-    };
-    return overlay;
-  }
-
-  // Account dropdown. Saved accounts hold an email and password, kept by Rust
-  // (encrypted). The page only sees names and emails. A switch opens Discord's
-  // login page, and window.__nebulaFill fills in its form.
-  var accountList = [];
-  var accountsPanel = null;
-
   function el(tag, cls) {
     var node = document.createElement(tag);
     node.className = cls;
     return node;
   }
+
+  function buildMenu() {
+    var panel = el("div", "");
+    panel.id = "nb-menu";
+    panel.setAttribute("role", "menu");
+    var options = THEMES.map(function (t) {
+      return '<button class="nb-opt" role="menuitemradio" data-id="' + t.id + '" style="--sw-bg:' + t.bg +
+        ";--sw-accent:" + t.accent + '"><span class="nb-swatch"></span><span class="nb-opt-text">' +
+        '<span class="nb-opt-name">' + t.name + '</span><span class="nb-opt-blurb">' + t.blurb + "</span></span>" +
+        '<span class="nb-tick">&#10003;</span></button>';
+    }).join("");
+    panel.innerHTML =
+      '<div class="nb-m-head">Theme</div><div class="nb-m-list">' + options + "</div>" +
+      '<div class="nb-m-sep"></div><div class="nb-m-head">Power</div>' +
+      '<label class="nb-m-row"><span>Slow to 10 FPS when tabbed out</span>' +
+      '<input class="nb-toggle" type="checkbox" role="switch"' + (throttleOn ? " checked" : "") + "></label>" +
+      '<p class="nb-m-hint">Saves CPU and GPU while Nebula is in the background.</p>';
+    document.body.appendChild(panel);
+
+    panel.addEventListener("click", function (e) {
+      var opt = e.target.closest(".nb-opt");
+      if (!opt) return;
+      applyTheme(THEMES.filter(function (t) { return t.id === opt.dataset.id; })[0], true);
+    });
+    panel.querySelector(".nb-toggle").addEventListener("change", function (e) {
+      throttleOn = e.target.checked;
+      send("throttle:" + (throttleOn ? "on" : "off"));
+    });
+    markActive();
+    return panel;
+  }
+
+  // ---- Account dropdown ----------------------------------------------------
+  // Saved accounts hold an email and password, kept by Rust (encrypted). The page
+  // only sees names and emails. A switch opens Discord's login page, and
+  // window.__nebulaFill fills in its form.
+  var accountList = [];
 
   // Sets a React-controlled input's value so the framework sees the change.
   function setInputValue(input, value) {
@@ -438,16 +476,11 @@
       panel.classList.remove("open");
     }
     function open() {
+      closeMenu();
       setError("");
       panel.classList.add("open");
       send(JSON.stringify({ op: "list" }));
     }
-    // Clicks outside the panel and its button close it.
-    document.addEventListener("mousedown", function (e) {
-      if (!panel.classList.contains("open")) return;
-      if (panel.contains(e.target) || e.target.closest(".nb-account")) return;
-      close();
-    });
     panel.open = open;
     panel.close = close;
     panel.toggle = function () {
@@ -457,13 +490,27 @@
     return panel;
   }
 
-  function buildTitlebar(overlay) {
+  // Opening and closing the two dropdowns.
+  function closeMenu() {
+    if (!menu) return;
+    menu.classList.remove("open");
+    var btn = document.querySelector("#nb-titlebar .nb-settings");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+  function toggleMenu() {
+    var open = !menu.classList.contains("open");
+    if (open) accountsPanel.close();
+    menu.classList.toggle("open", open);
+    document.querySelector("#nb-titlebar .nb-settings").setAttribute("aria-expanded", String(open));
+  }
+
+  function buildTitlebar() {
     var bar = document.createElement("div");
     bar.id = "nb-titlebar";
     bar.innerHTML =
+      '<button class="nb-settings" data-act="settings" title="Nebula settings" aria-haspopup="menu" aria-expanded="false">' + ICON.gear + "</button>" +
       '<div class="nb-brand"><span class="nb-dot"></span>Nebula</div><div class="nb-spacer"></div>' +
       '<button class="nb-account" data-act="accounts" title="Accounts"><span class="nb-avatar">' + ICON.user + "</span></button>" +
-      '<button class="nb-gear" data-act="settings" title="Nebula settings">' + ICON.gear + "</button>" +
       '<button data-act="minimize" title="Minimize">' + ICON.min + "</button>" +
       '<button data-act="maximize" title="Maximize">' + ICON.max + "</button>" +
       '<button class="nb-close" data-act="close" title="Close">' + ICON.close + "</button>";
@@ -476,9 +523,25 @@
     bar.addEventListener("click", function (e) {
       var button = e.target.closest("button");
       if (!button) return;
-      if (button.dataset.act === "settings") overlay.open();
-      else if (button.dataset.act === "accounts") accountsPanel.toggle();
-      else send(button.dataset.act);
+      if (button.dataset.act === "settings") toggleMenu();
+      else if (button.dataset.act === "accounts") {
+        closeMenu();
+        accountsPanel.toggle();
+      } else send(button.dataset.act);
+    });
+  }
+
+  // Clicks outside an open dropdown close it. Escape closes both.
+  function wireDismiss() {
+    document.addEventListener("mousedown", function (e) {
+      if (menu.classList.contains("open") && !menu.contains(e.target) && !e.target.closest(".nb-settings")) closeMenu();
+      if (accountsPanel.classList.contains("open") && !accountsPanel.contains(e.target) && !e.target.closest(".nb-account")) accountsPanel.close();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        closeMenu();
+        accountsPanel.close();
+      }
     });
   }
 
@@ -489,9 +552,10 @@
     style.textContent = STYLE;
     document.head.appendChild(style);
 
-    var overlay = buildSettings();
+    menu = buildMenu();
     accountsPanel = buildAccounts();
-    buildTitlebar(overlay);
+    buildTitlebar();
+    wireDismiss();
     root.setAttribute("data-nb-theme", current.id);
     retheme(current, true);
     // Ask Rust for the saved accounts. It answers through __nebulaSetAccounts.
@@ -503,8 +567,15 @@
     // runs and after load. Those are picked up here, so colors never fall back
     // to Discord's default. A class change on <html> is a theme switch: its
     // palette is read again.
-    new MutationObserver(function () { schedule(true); })
-      .observe(root, { attributes: true, attributeFilter: ["class"] });
+    // Discord often rewrites the class attribute with the same value. Only a
+    // real change in the class list is a theme switch, so only that triggers a
+    // full palette re-read; an identical rewrite would just repaint everything.
+    var lastClass = root.className;
+    new MutationObserver(function () {
+      if (root.className === lastClass) return;
+      lastClass = root.className;
+      schedule(true);
+    }).observe(root, { attributes: true, attributeFilter: ["class"] });
     // Our overrides live in the root's inline style. If anything replaces that
     // attribute (window resize or layout changes can do this), the overrides are
     // lost, so reapply them now. The scheduled pass drops the records of its own

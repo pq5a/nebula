@@ -59,10 +59,18 @@ The hash must match the one listed for that release. v0.2.0 `Nebula.zip`:
 - Button hover/press transitions are disabled in the injected stylesheet.
 - The window has no native title bar. Nebula draws its own (`src/chrome.js`), with
   minimize, maximize and close buttons. Double-clicking it toggles maximize.
-- The gear button opens Nebula Settings with three themes (Nebula, Midnight and
-  Ember). A theme recolors the whole Discord client: backgrounds, text, and the
-  brand accent. Lightness is kept from Discord's palette, and light text is lifted
-  to at least 4.5:1 contrast against the surfaces. Red, green and yellow are unchanged.
+- A settings icon at the top-left of the title bar opens a small menu with two
+  sections:
+  - **Theme:** eight built-in themes: Nebula, Midnight, Ember, Aurora, Rose, Forest,
+    Solar and Graphite. A theme recolors the whole Discord client: backgrounds, text,
+    and the brand accent. Lightness is kept from Discord's palette, and light text is
+    lifted to at least 4.5:1 contrast against the surfaces. Red, green and yellow are
+    unchanged.
+  - **Power:** "Slow to 10 FPS when tabbed out", on by default. While the Nebula
+    window is hidden or not focused, animation frames run 10 times a second instead of
+    at the display rate, which cuts background CPU and GPU use. Turn it off to keep
+    full frame rate in the background. The choice is saved to
+    `%APPDATA%\Nebula\throttle.txt`.
 - An account button (person icon) sits in the top-right title bar. It opens a
   dropdown of saved accounts. To add one, enter a name, email and password and press
   Save. To switch, click the account: Nebula signs out the current session and opens
@@ -77,6 +85,8 @@ The hash must match the one listed for that release. v0.2.0 `Nebula.zip`:
   localStorage, so the file is read at startup and injected before the page loads.
   The window and webview use the theme's background color until Discord paints, so
   startup never shows a white screen.
+- The client recolors only when Discord's theme class actually changes or a new
+  stylesheet appears, so idle Discord pages do no recoloring work.
 
 ## Building
 
@@ -96,7 +106,7 @@ The build does not download anything.
 - `src/main.rs` — window, webview setup, navigation rules, Firefox handoff.
 - `src/vencord.rs` — Vencord download, digest verification, cache, and page script.
 - `src/accounts.rs` — saved accounts, DPAPI encryption, and account requests from the page.
-- `src/chrome.js` — title bar, settings, account dropdown, and theme recoloring (injected).
+- `src/chrome.js` — title bar, settings menu (themes and low-power mode), account dropdown, theme recoloring and the 10 FPS background throttle (injected).
 - `build.rs` — embeds the Windows icon.
 - `vendor/` — third-party Vencord files (fallback copy).
 - `assets/icon.ico`, `Logo.png` — application icon and logo.
