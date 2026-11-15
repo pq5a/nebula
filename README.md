@@ -4,6 +4,17 @@ Nebula is a small Windows desktop wrapper that opens Discord in its own window
 (WebView2 via [wry](https://github.com/tauri-apps/wry) and [tao](https://github.com/tauri-apps/tao)),
 with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
 
+## Install
+
+1. Go to the Nebula website: [nebula-skin.netlify.app](https://nebula-skin.netlify.app)
+   and click the download button, or open the [latest release](https://github.com/pq5a/nebula/releases/latest)
+   directly.
+2. Download `Nebula.zip` from the release and extract it to a folder of your choice.
+3. Run `Nebula.exe`. Discord opens in its own window.
+
+All versions are listed on the [releases page](https://github.com/pq5a/nebula/releases).
+Nebula runs on Windows only.
+
 ## Behaviour
 
 - Discord (`discord.com`, `discordapp.com` and subdomains) stays inside the Nebula window.
