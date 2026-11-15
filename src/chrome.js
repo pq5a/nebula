@@ -26,14 +26,14 @@
     "#nb-titlebar .nb-brand { display:flex; align-items:center; gap:9px; padding:0 14px; height:100%; letter-spacing:.12em; text-transform:uppercase; font-size:11px; }",
     "#nb-titlebar .nb-dot { width:8px; height:8px; border-radius:50%; background:var(--nb-accent); box-shadow:0 0 10px var(--nb-accent); }",
     "#nb-titlebar .nb-spacer { flex:1; height:100%; }",
-    "#nb-titlebar button { all:unset; box-sizing:border-box; width:46px; height:36px; display:grid; place-items:center; color:var(--nb-muted); cursor:default; transition:background .12s,color .12s; }",
+    "#nb-titlebar button { all:unset; box-sizing:border-box; width:46px; height:36px; display:grid; place-items:center; color:var(--nb-muted); cursor:default; }",
     "#nb-titlebar button.nb-gear { width:42px; }",
     "#nb-titlebar button:hover { background:rgba(255,255,255,.08); color:var(--nb-text); }",
     "#nb-titlebar button.nb-close:hover { background:#e81123; color:#fff; }",
     "#nb-titlebar svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; }",
     "#nb-titlebar .nb-gear svg { width:15px; height:15px; }",
     "html body #app-mount { padding-top:36px !important; box-sizing:border-box !important; }",
-    "#nb-overlay { position:fixed; inset:0; z-index:2147483646; display:none; align-items:center; justify-content:center; background:rgba(3,2,10,.6); backdrop-filter:blur(6px); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; }",
+    "#nb-overlay { position:fixed; inset:0; z-index:2147483646; display:none; align-items:center; justify-content:center; background:rgba(3,2,10,.7); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; }",
     "#nb-overlay.open { display:flex; animation:nb-in .18s ease-out; }",
     "@keyframes nb-in { from { opacity:0; transform:scale(.98); } to { opacity:1; transform:none; } }",
     "#nb-modal { width:580px; max-width:92vw; background:var(--nb-panel); color:var(--nb-text); border-radius:16px; border:1px solid var(--nb-glow); box-shadow:0 24px 70px rgba(0,0,0,.6),0 0 46px var(--nb-glow); overflow:hidden; }",
@@ -45,7 +45,7 @@
     "#nb-modal .nb-tab { padding:7px 14px; border-radius:999px; color:var(--nb-accent); background:rgba(255,255,255,.06); font-weight:600; font-size:12px; }",
     "#nb-modal .nb-hint { margin:14px 22px 0; color:var(--nb-muted); font-size:12px; }",
     "#nb-modal .nb-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:14px 22px 22px; }",
-    "#nb-modal .nb-card { position:relative; cursor:pointer; padding:10px; border-radius:14px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); transition:transform .18s,box-shadow .18s,border-color .18s; }",
+    "#nb-modal .nb-card { position:relative; cursor:pointer; padding:10px; border-radius:14px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); transition:transform .12s,border-color .12s; }",
     "#nb-modal .nb-card:hover { transform:translateY(-3px); border-color:var(--card-accent); }",
     "#nb-modal .nb-card.active { border-color:var(--card-accent); box-shadow:0 0 0 1px var(--card-accent),0 10px 28px rgba(0,0,0,.45),0 0 26px var(--card-glow); }",
     "#nb-modal .nb-preview { position:relative; height:92px; border-radius:9px; overflow:hidden; background:var(--card-bg); }",
@@ -126,23 +126,37 @@
   // family, keeping its lightness and alpha: neutral surfaces and text take the
   // theme's hue, blurple/brand colors take the accent hue, and red, green and
   // yellow are left alone. Lightness is unchanged, so contrast stays as in Discord.
+  // Discord's own value for each variable, parsed to [r, g, b, alpha] (or null
+  // for non-colors). Read once per palette, not on every update.
   var originals = {};
+  // Variable -> { want, shown }: the value we set, and the value the browser stored.
+  var applied = {};
+  var root = null;
   // Set by Rust from the saved choice: the webview has no localStorage.
   var current = THEMES.filter(function (t) { return t.id === window.__nebulaTheme; })[0] || THEMES[0];
-  function retheme(theme) {
-    var root = document.documentElement;
+
+  // Recolors Discord's variables for `theme`. With `fresh`, Discord's palette
+  // may have changed, so our overrides are removed first and the originals
+  // are read again. Only values that differ from what is already set are written.
+  function retheme(theme, fresh) {
+    if (fresh) {
+      Object.keys(applied).forEach(function (name) { root.style.removeProperty(name); });
+      applied = {};
+      originals = {};
+    }
     var cs = getComputedStyle(root);
     var names = [];
     for (var i = 0; i < cs.length; i++) if (cs[i].indexOf("--") === 0) names.push(cs[i]);
     // Read everything before writing: the computed style is live, so each write
     // would force a full restyle if reads and writes alternated.
     names.forEach(function (name) {
-      if (!originals[name]) originals[name] = cs.getPropertyValue(name);
+      if (!(name in originals)) originals[name] = parseColor(cs.getPropertyValue(name));
     });
     // Light colors are text, so they must stay readable on the lightest surface.
     var surface = hslLum(theme.hue, theme.tint, 18);
+    var next = {};
     names.forEach(function (name) {
-      var c = originals[name] && parseColor(originals[name]);
+      var c = originals[name];
       if (!c) return;
       var hsl = rgbToHsl(c[0], c[1], c[2]);
       var h = hsl[0], s = hsl[1], l = hsl[2];
@@ -150,7 +164,32 @@
       else if (s <= 30) { h = theme.hue; s = theme.tint; }
       else return;
       if (l > 50) while (l < 100 && contrast(hslLum(h, s, l), surface) < 4.5) l += 0.5;
-      root.style.setProperty(name, "hsl(" + h + " " + s + "% " + l + "% / " + c[3] + ")", "important");
+      var value = "hsl(" + h + " " + s + "% " + l + "% / " + c[3] + ")";
+      var prev = applied[name];
+      // Rewrite if the wanted value changed, or if something replaced our
+      // override (the browser stores the value in its own form, so compare that).
+      var intact = prev && root.style.getPropertyValue(name) === prev.shown &&
+        root.style.getPropertyPriority(name) === "important";
+      if (!intact || prev.want !== value) root.style.setProperty(name, value, "important");
+      next[name] = { want: value, shown: root.style.getPropertyValue(name) };
+    });
+    Object.keys(applied).forEach(function (name) {
+      if (!(name in next)) root.style.removeProperty(name);
+    });
+    applied = next;
+  }
+
+  // Coalesces bursts of Discord DOM changes into one update per frame.
+  var scheduled = 0;
+  var scheduledFresh = false;
+  function schedule(fresh) {
+    scheduledFresh = scheduledFresh || fresh;
+    if (scheduled) return;
+    scheduled = requestAnimationFrame(function () {
+      var freshNow = scheduledFresh;
+      scheduled = 0;
+      scheduledFresh = false;
+      retheme(current, freshNow);
     });
   }
 
@@ -172,14 +211,18 @@
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   }
 
+  function markActive() {
+    document.querySelectorAll("#nb-modal .nb-card").forEach(function (card) {
+      card.classList.toggle("active", card.dataset.id === current.id);
+    });
+  }
+
   function applyTheme(theme, save) {
     current = theme;
-    document.documentElement.setAttribute("data-nb-theme", theme.id);
+    root.setAttribute("data-nb-theme", theme.id);
     if (save) send("theme:" + theme.id);
-    retheme(theme);
-    document.querySelectorAll("#nb-modal .nb-card").forEach(function (card) {
-      card.classList.toggle("active", card.dataset.id === theme.id);
-    });
+    retheme(theme, false);
+    markActive();
   }
 
   function cardHtml(t) {
@@ -211,6 +254,10 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") close();
     });
+    overlay.open = function () {
+      markActive();
+      overlay.classList.add("open");
+    };
     return overlay;
   }
 
@@ -232,12 +279,13 @@
     bar.addEventListener("click", function (e) {
       var button = e.target.closest("button");
       if (!button) return;
-      if (button.dataset.act === "settings") overlay.classList.add("open");
+      if (button.dataset.act === "settings") overlay.open();
       else send(button.dataset.act);
     });
   }
 
   function build() {
+    root = document.documentElement;
     var style = document.createElement("style");
     style.id = "nb-chrome-css";
     style.textContent = STYLE;
@@ -245,12 +293,24 @@
 
     var overlay = buildSettings();
     buildTitlebar(overlay);
-    applyTheme(current, false);
+    root.setAttribute("data-nb-theme", current.id);
+    retheme(current, true);
 
-    // Discord may define its palette after this runs, or change its theme class.
-    window.addEventListener("load", function () { retheme(current); });
-    new MutationObserver(function () { retheme(current); })
-      .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    // Discord defines its palette in stylesheets that can arrive after this
+    // runs and after load. Those are picked up here, so colors never fall back
+    // to Discord's default. A class change on <html> is a theme switch: its
+    // palette is read again.
+    new MutationObserver(function () { schedule(true); })
+      .observe(root, { attributes: true, attributeFilter: ["class"] });
+    // Our overrides live in the root's inline style. If anything replaces that
+    // attribute (window resize or layout changes can do this), the overrides are
+    // lost, so reapply them now. Our own writes trigger this too, but a retheme
+    // with nothing to change writes nothing, so it settles.
+    new MutationObserver(function () { schedule(false); })
+      .observe(root, { attributes: true, attributeFilter: ["style"] });
+    new MutationObserver(function () { schedule(false); })
+      .observe(document.head, { childList: true, subtree: true, characterData: true });
+    window.addEventListener("load", function () { schedule(false); });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build, { once: true });

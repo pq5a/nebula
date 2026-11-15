@@ -26,6 +26,8 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
   to at least 4.5:1 contrast against the surfaces. Red, green and yellow are unchanged.
 - The chosen theme is saved to `%APPDATA%\Nebula\theme.txt`. The webview has no
   localStorage, so the file is read at startup and injected before the page loads.
+  The window and webview use the theme's background color until Discord paints, so
+  startup never shows a white screen.
 
 ## Building
 

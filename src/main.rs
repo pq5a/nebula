@@ -14,7 +14,7 @@ use tao::{
     event_loop::{ControlFlow, EventLoopBuilder},
     window::{Icon, WindowBuilder},
 };
-use wry::{WebContext, WebViewBuilder};
+use wry::{WebContext, WebViewBuilder, RGBA};
 
 mod vencord;
 
@@ -106,11 +106,23 @@ fn parse_command(msg: &str) -> Option<WindowCommand> {
     }
 }
 
-// Built-in themes. The colors live in src/chrome.js.
-const THEMES: [&str; 3] = ["nebula", "midnight", "ember"];
+// Built-in themes: id, and the background shown before Discord paints. The
+// full palettes live in src/chrome.js.
+const THEMES: [(&str, RGBA); 3] = [
+    ("nebula", (0x0d, 0x0a, 0x1f, 255)),
+    ("midnight", (0x05, 0x08, 0x0f, 255)),
+    ("ember", (0x14, 0x0a, 0x08, 255)),
+];
 
 fn known_theme(id: &str) -> Option<&'static str> {
-    THEMES.iter().copied().find(|t| *t == id)
+    THEMES.iter().map(|(t, _)| *t).find(|t| *t == id)
+}
+
+fn theme_background(id: &str) -> RGBA {
+    THEMES
+        .iter()
+        .find(|(t, _)| *t == id)
+        .map_or(THEMES[0].1, |(_, color)| *color)
 }
 
 fn theme_path(data_dir: &Path) -> PathBuf {
@@ -122,7 +134,7 @@ fn saved_theme(data_dir: &Path) -> &'static str {
     fs::read_to_string(theme_path(data_dir))
         .ok()
         .and_then(|s| known_theme(s.trim()))
-        .unwrap_or(THEMES[0])
+        .unwrap_or(THEMES[0].0)
 }
 
 fn main() -> wry::Result<()> {
@@ -134,25 +146,28 @@ fn main() -> wry::Result<()> {
     #[cfg(not(target_os = "windows"))]
     let icon: Option<Icon> = None;
 
+    let data_dir = data_dir();
+    let theme = saved_theme(&data_dir);
+    // Painted until Discord renders, so startup shows the theme, not white.
+    let background = theme_background(theme);
+
     let window = WindowBuilder::new()
         .with_title(APP_NAME)
         .with_decorations(false)
         .with_window_icon(icon)
+        .with_background_color(background)
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
         .with_min_inner_size(LogicalSize::new(640.0, 480.0))
         .build(&event_loop)
         .expect("failed to create window");
 
-    let data_dir = data_dir();
     let mut web_context = WebContext::new(Some(data_dir.clone()));
-    let chrome_script = format!(
-        "window.__nebulaTheme = \"{}\";\n{CHROME_SCRIPT}",
-        saved_theme(&data_dir)
-    );
+    let chrome_script = format!("window.__nebulaTheme = \"{theme}\";\n{CHROME_SCRIPT}");
     let theme_file = theme_path(&data_dir);
 
     let mut builder = WebViewBuilder::with_web_context(&mut web_context)
         .with_url(DISCORD_URL)
+        .with_background_color(background)
         // Links to other sites leave the app and open as a Firefox tab.
         .with_navigation_handler(|url| {
             if is_in_app(&url) || !is_web_url(&url) {
