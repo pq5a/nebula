@@ -15,6 +15,17 @@ with [Vencord](https://github.com/Vendicated/Vencord) injected into the page.
 All versions are listed on the [releases page](https://github.com/pq5a/nebula/releases).
 Nebula runs on Windows only.
 
+> **Warning: Windows Defender may flag the download.**
+> Defender can remove `Nebula.zip` and report it as `Trojan:Script/Wacatac.B!ml`. We
+> believe this is a false positive: the `.exe` inside is clean on VirusTotal, and the
+> flag is a machine-learning guess. We plan to send the file to Microsoft for review.
+>
+> - **Do not turn off virus protection** to get Nebula to run.
+> - Before running anything, check the file's SHA-256 hash against the one in
+>   [Verify the download](#verify-the-download) below.
+> - Only download Nebula from the [official release page](https://github.com/pq5a/nebula/releases).
+> - This warning will be removed once Microsoft clears the flag.
+
 ### Verify the download
 
 Each release asset has a SHA-256 digest on its release page. To check your copy,
