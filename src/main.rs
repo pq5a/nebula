@@ -142,6 +142,24 @@ fn saved_throttle(data_dir: &Path) -> bool {
         .map_or(true, |s| parse_throttle(&s))
 }
 
+// The pointer style chosen in the settings menu (src/chrome.js), saved by id.
+// "system" is the default, so a missing or damaged file keeps Windows' pointer.
+const CURSORS: [&str; 5] = ["system", "cross", "dot", "ring", "corners"];
+
+fn cursor_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("cursor.txt")
+}
+
+fn parse_cursor(text: &str) -> Option<&'static str> {
+    let text = text.trim();
+    CURSORS.iter().copied().find(|id| *id == text)
+}
+
+fn saved_cursor(data_dir: &Path) -> &'static str {
+    let text = fs::read_to_string(cursor_path(data_dir)).unwrap_or_default();
+    parse_cursor(&text).unwrap_or("system")
+}
+
 fn main() -> wry::Result<()> {
     // Messages from the page (window commands, theme and account requests) are
     // handled on the event loop, which owns the window and webview.
@@ -171,8 +189,10 @@ fn main() -> wry::Result<()> {
 
     let mut web_context = WebContext::new(Some(data_dir.clone()));
     let throttle = saved_throttle(&data_dir);
+    // The id is one of CURSORS, so it is safe to put in a JavaScript string.
+    let cursor = saved_cursor(&data_dir);
     let chrome_script = format!(
-        "window.__nebulaTheme = \"{theme}\";\nwindow.__nebulaCustom = {};\nwindow.__nebulaThrottle = {throttle};\n{CHROME_SCRIPT}",
+        "window.__nebulaTheme = \"{theme}\";\nwindow.__nebulaCustom = {};\nwindow.__nebulaThrottle = {throttle};\nwindow.__nebulaCursor = \"{cursor}\";\n{CHROME_SCRIPT}",
         themes::custom_json(custom.as_ref())
     );
 
@@ -248,6 +268,16 @@ fn main() -> wry::Result<()> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
+            // Keeps the title bar's maximize/restore button in step with the window.
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => {
+                let _ = webview.evaluate_script(&format!(
+                    "window.__nebulaMaximized && window.__nebulaMaximized({});",
+                    window.is_maximized()
+                ));
+            }
             Event::UserEvent(msg) => {
                 if msg == LOGIN_CONTINUE {
                     let _ = webview.load_url(LOGIN_URL);
@@ -281,6 +311,12 @@ fn main() -> wry::Result<()> {
                             let _ = fs::write(&throttle_file, "off");
                         }
                         _ => {}
+                    }
+                } else if let Some(id) = msg.strip_prefix("cursor:") {
+                    if let Some(id) = parse_cursor(id) {
+                        if let Err(e) = fs::write(cursor_path(&data_dir), id) {
+                            eprintln!("could not save cursor: {e}");
+                        }
                     }
                 } else if let Some(request) = accounts::parse_request(&msg) {
                     handle_account(
@@ -383,7 +419,9 @@ fn handle_account(
 
 #[cfg(test)]
 mod tests {
-    use super::{http_host, is_in_app, is_web_url, parse_command, parse_throttle, WindowCommand};
+    use super::{
+        http_host, is_in_app, is_web_url, parse_command, parse_cursor, parse_throttle, WindowCommand,
+    };
 
     #[test]
     fn throttle_is_on_unless_turned_off() {
@@ -391,6 +429,16 @@ mod tests {
         assert!(parse_throttle("on\n"));
         assert!(parse_throttle("garbage"));
         assert!(!parse_throttle("off\n"));
+    }
+
+    #[test]
+    fn only_known_cursors_are_accepted() {
+        assert_eq!(parse_cursor("cross"), Some("cross"));
+        assert_eq!(parse_cursor("corners\n"), Some("corners"));
+        assert_eq!(parse_cursor("system"), Some("system"));
+        assert_eq!(parse_cursor("Cross"), None);
+        assert_eq!(parse_cursor("../evil"), None);
+        assert_eq!(parse_cursor(""), None);
     }
 
     #[test]
