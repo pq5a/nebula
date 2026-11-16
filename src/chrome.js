@@ -1,6 +1,6 @@
 // Nebula window chrome: custom title bar, window controls, the settings menu
-// (theme and low-power mode) and the account dropdown. Injected before every
-// page; runs on discord.com only.
+// (theme, cursor and low-power mode), the account dropdown and the custom
+// cursor. Injected before every page; runs on discord.com only.
 (function () {
   "use strict";
   var host = location.hostname;
@@ -37,21 +37,33 @@
   var STYLE = [
     ":root { --nb-bg:#0d0a1f; --nb-panel:#15112e; --nb-accent:#a78bfa; --nb-text:#ede9ff; --nb-muted:#8b82b5; --nb-glow:#a78bfa59; }"
   ].concat(THEME_CSS, [
-    "#nb-titlebar { position:fixed; top:0; left:0; right:0; height:36px; z-index:2147483647; display:flex; align-items:center;",
+    // The bar is 32px, the height of Windows 11's own caption buttons, so the
+    // window controls look native and Discord's layout sits right below it.
+    "#nb-titlebar { position:fixed; top:0; left:0; right:0; height:32px; z-index:2147483647; display:flex; align-items:center;",
     "  background:var(--nb-panel); border-bottom:1px solid var(--nb-glow); color:var(--nb-text); user-select:none; font:600 12px/1 'Segoe UI Variable','Segoe UI',sans-serif; }",
-    "#nb-titlebar .nb-brand { display:flex; align-items:center; gap:9px; padding:0 14px; height:100%; letter-spacing:.12em; text-transform:uppercase; font-size:11px; }",
-    "#nb-titlebar .nb-dot { width:8px; height:8px; border-radius:50%; background:var(--nb-accent); }",
+    "#nb-titlebar .nb-brand { display:flex; align-items:center; gap:8px; padding:0 12px; height:100%; letter-spacing:.14em; text-transform:uppercase; font-size:10.5px; }",
+    "#nb-titlebar .nb-dot { width:7px; height:7px; border-radius:50%; background:var(--nb-accent); box-shadow:0 0 8px var(--nb-accent); }",
     "#nb-titlebar .nb-spacer { flex:1; height:100%; }",
-    "#nb-titlebar button { all:unset; box-sizing:border-box; width:46px; height:36px; display:grid; place-items:center; color:var(--nb-muted); cursor:default; }",
-    "#nb-titlebar button.nb-settings { width:42px; }",
+    "#nb-titlebar button { all:unset; box-sizing:border-box; height:32px; display:grid; place-items:center; color:var(--nb-muted); cursor:default; transition:background-color .1s, color .1s; }",
+    "#nb-titlebar button:focus-visible { outline:2px solid var(--nb-accent); outline-offset:-2px; }",
+    "#nb-titlebar button.nb-settings, #nb-titlebar button.nb-account { width:40px; }",
     "#nb-titlebar button:hover { background:rgba(255,255,255,.08); color:var(--nb-text); }",
+    "#nb-titlebar button:active { background:rgba(255,255,255,.04); }",
     "#nb-titlebar button.nb-settings[aria-expanded=\"true\"] { background:rgba(255,255,255,.10); color:var(--nb-text); }",
-    "#nb-titlebar button.nb-close:hover { background:#e81123; color:#fff; }",
-    "#nb-titlebar svg { width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; }",
-    "#nb-titlebar .nb-settings svg { width:15px; height:15px; }",
-    "html body #app-mount { padding-top:36px !important; box-sizing:border-box !important; }",
+    "#nb-titlebar .nb-sep { width:1px; height:14px; margin:0 3px; background:rgba(255,255,255,.12); }",
+    "#nb-titlebar button.nb-wc { width:46px; }",
+    "#nb-titlebar button.nb-wc.nb-close:hover { background:#c42b1c; color:#fff; }",
+    "#nb-titlebar button.nb-wc.nb-close:active { background:#d9473a; color:#fff; }",
+    "#nb-titlebar svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1; stroke-linecap:square; stroke-linejoin:miter; }",
+    "#nb-titlebar .nb-settings svg { width:15px; height:15px; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }",
+    "html body #app-mount { padding-top:32px !important; box-sizing:border-box !important; }",
     "@keyframes nb-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }",
-    "#nb-menu, #nb-accounts { position:fixed; top:40px; z-index:2147483646; display:none; flex-direction:column; background:var(--nb-panel); color:var(--nb-text); border-radius:12px; border:1px solid var(--nb-glow); box-shadow:0 12px 32px rgba(0,0,0,.5); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; overflow:hidden; }",
+    // The custom cursor hides the system pointer everywhere in the page.
+    "body.nb-cursor-on, body.nb-cursor-on * { cursor:none !important; }",
+    "#nb-cursor { position:fixed; left:0; top:0; width:32px; height:32px; margin:-16px 0 0 -16px; z-index:2147483647; display:none; pointer-events:none; color:#fff; mix-blend-mode:difference; }",
+    "body.nb-cursor-on #nb-cursor.nb-show { display:block; }",
+    "#nb-cursor svg { display:block; width:32px; height:32px; overflow:visible; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:square; }",
+    "#nb-menu, #nb-accounts { position:fixed; top:36px; z-index:2147483646; display:none; flex-direction:column; background:var(--nb-panel); color:var(--nb-text); border-radius:12px; border:1px solid var(--nb-glow); box-shadow:0 12px 32px rgba(0,0,0,.5); font:13px/1.4 'Segoe UI Variable','Segoe UI',sans-serif; overflow:hidden; }",
     "#nb-menu { left:8px; width:264px; max-height:calc(100vh - 56px); overflow-y:auto; scrollbar-width:thin; }",
     "#nb-menu .nb-m-custom { display:flex; align-items:center; gap:8px; padding:4px 14px 2px; }",
     "#nb-menu .nb-pick { display:flex; align-items:center; gap:6px; color:var(--nb-muted); font-size:12px; }",
@@ -79,9 +91,13 @@
     "#nb-menu .nb-toggle::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--nb-text); transition:left .15s; }",
     "#nb-menu .nb-toggle:checked { background:var(--nb-accent); }",
     "#nb-menu .nb-toggle:checked::after { left:18px; background:#0b0716; }",
-    "#nb-titlebar button.nb-account { width:38px; }",
+    "#nb-menu .nb-m-cursors { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; padding:0 8px 10px; }",
+    "#nb-menu .nb-cur { all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 0 6px; border-radius:8px; color:var(--nb-muted); font-size:10.5px; }",
+    "#nb-menu .nb-cur svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:square; }",
+    "#nb-menu .nb-cur:hover { background:rgba(255,255,255,.08); color:var(--nb-text); }",
+    "#nb-menu .nb-cur.active { color:var(--nb-accent); box-shadow:inset 0 0 0 1px var(--nb-accent); }",
     "#nb-titlebar .nb-avatar { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--nb-glow); color:var(--nb-text); }",
-    "#nb-titlebar .nb-avatar svg { width:13px; height:13px; }",
+    "#nb-titlebar .nb-avatar svg { width:13px; height:13px; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }",
     "#nb-accounts .nb-acc-empty { padding:4px 14px 12px; color:var(--nb-muted); font-size:12px; }",
     "#nb-accounts .nb-acc-row { display:flex; align-items:center; gap:8px; padding:4px 6px 4px 8px; }",
     "#nb-accounts .nb-acc-switch { all:unset; flex:1; display:flex; align-items:center; gap:10px; min-width:0; padding:7px 6px; border-radius:8px; cursor:pointer; }",
@@ -100,10 +116,12 @@
     "#nb-accounts .nb-acc-error { color:#fca5a5; font-size:12px; min-height:0; }"
   ]).join("\n");
 
+  // Window controls are drawn on a 10x10 grid with 1px strokes, as on Windows 11.
   var ICON = {
-    min: '<svg viewBox="0 0 12 12"><path d="M1.5 6h9"/></svg>',
-    max: '<svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/></svg>',
-    close: '<svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8"/></svg>',
+    min: '<svg viewBox="0 0 10 10"><path d="M1 5.5h8"/></svg>',
+    max: '<svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg>',
+    restore: '<svg viewBox="0 0 10 10"><path d="M3.5 1.5h5v5"/><path d="M1.5 3.5h5v5h-5z"/></svg>',
+    close: '<svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>',
     user: '<svg viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c.6-2.6 2.6-4 5.2-4s4.6 1.4 5.2 4"/></svg>',
     gear: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.3"/><path d="M8 1.6v2.1M8 12.3v2.1M1.6 8h2.1M12.3 8h2.1M3.4 3.4l1.5 1.5M11.1 11.1l1.5 1.5M3.4 12.6l1.5-1.5M11.1 4.9l1.5-1.5"/></svg>'
   };
@@ -345,6 +363,81 @@
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   }
 
+  // ---- Custom cursor -------------------------------------------------------
+  // "system" keeps Windows' own pointer. The other four are drawn on a 32x32
+  // grid by an overlay that follows the pointer. The overlay is white with
+  // mix-blend-mode: difference, so every pixel shows the inverse of what is
+  // beneath it. The same shapes are used as the icons in the settings menu.
+  var CURSORS = [
+    { id: "system", name: "System", shape: '<path d="M9 4v18l4.6-4.4 3 6.4 2.6-1.2-3-6.3H22z" fill="currentColor" stroke-width="1"/>' },
+    { id: "cross", name: "Cross", shape: '<path d="M16 3v9.5M16 19.5V29M3 16h9.5M19.5 16H29"/>' },
+    { id: "dot", name: "Dot", shape: '<circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/>' },
+    { id: "ring", name: "Ring", shape: '<circle cx="16" cy="16" r="9"/>' },
+    { id: "corners", name: "Corners", shape: '<path d="M5 12V5h7M20 5h7v7M27 20v7h-7M12 27H5v-7"/>' }
+  ];
+  function cursorById(id) {
+    return CURSORS.filter(function (c) { return c.id === id; })[0] || CURSORS[0];
+  }
+  // Set by Rust from the saved choice, like the theme.
+  var currentCursor = cursorById(window.__nebulaCursor);
+  var cursorEl = null;
+  var cursorBox = null;
+  var cursorOn = false;
+
+  function markCursors() {
+    if (!cursorBox) return;
+    cursorBox.querySelectorAll(".nb-cur").forEach(function (btn) {
+      var on = btn.dataset.id === currentCursor.id;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-checked", String(on));
+    });
+  }
+
+  // Switches the pointer. With `save`, Rust keeps the choice for the next launch.
+  function applyCursor(c, save) {
+    currentCursor = c;
+    cursorOn = c.id !== "system";
+    document.body.classList.toggle("nb-cursor-on", cursorOn);
+    if (cursorOn) cursorEl.innerHTML = '<svg viewBox="0 0 32 32">' + c.shape + "</svg>";
+    else cursorEl.classList.remove("nb-show");
+    if (save) send("cursor:" + c.id);
+    markCursors();
+  }
+
+  // The overlay is placed with transform, so moving it does not change layout.
+  function buildCursor() {
+    cursorEl = el("div", "");
+    cursorEl.id = "nb-cursor";
+    cursorEl.setAttribute("aria-hidden", "true");
+    document.body.appendChild(cursorEl);
+    document.addEventListener("mousemove", function (e) {
+      if (!cursorOn) return;
+      cursorEl.style.transform = "translate(" + e.clientX + "px," + e.clientY + "px)";
+      cursorEl.classList.add("nb-show");
+    }, { passive: true });
+    // Hide the overlay when the pointer leaves the page, so it does not stick at the edge.
+    document.documentElement.addEventListener("mouseleave", function () {
+      cursorEl.classList.remove("nb-show");
+    });
+  }
+
+  function renderCursors() {
+    cursorBox.textContent = "";
+    CURSORS.forEach(function (c) {
+      var btn = el("button", "nb-cur");
+      btn.type = "button";
+      btn.setAttribute("role", "menuitemradio");
+      btn.dataset.id = c.id;
+      btn.title = c.name;
+      btn.innerHTML = '<svg viewBox="0 0 32 32">' + c.shape + "</svg>";
+      var label = el("span", "");
+      label.textContent = c.name;
+      btn.appendChild(label);
+      cursorBox.appendChild(btn);
+    });
+    markCursors();
+  }
+
   // ---- Settings menu -------------------------------------------------------
   var menu = null;
   var accountsPanel = null;
@@ -458,6 +551,7 @@
       '<label class="nb-pick"><input class="nb-color nb-c-accent" type="color" title="Accent">Accent</label>' +
       '<button class="nb-save" type="button">Save theme</button></div>' +
       '<p class="nb-m-hint">Pick two colours to preview them. Save keeps them.</p>' +
+      '<div class="nb-m-sep"></div><div class="nb-m-head">Cursor</div><div class="nb-m-cursors"></div>' +
       '<div class="nb-m-sep"></div><div class="nb-m-head">Power</div>' +
       '<label class="nb-m-row"><span>Slow to 10 FPS when tabbed out</span>' +
       '<input class="nb-toggle" type="checkbox" role="switch"' + (throttleOn ? " checked" : "") + "></label>" +
@@ -467,10 +561,17 @@
     listBox = panel.querySelector(".nb-m-list");
     pickBg = panel.querySelector(".nb-c-bg");
     pickAccent = panel.querySelector(".nb-c-accent");
+    cursorBox = panel.querySelector(".nb-m-cursors");
     renderOptions();
     syncPickers();
+    renderCursors();
 
     panel.addEventListener("click", function (e) {
+      var cur = e.target.closest(".nb-cur");
+      if (cur) {
+        applyCursor(cursorById(cur.dataset.id), true);
+        return;
+      }
       var opt = e.target.closest(".nb-opt");
       if (!opt) return;
       previewing = false;
@@ -653,17 +754,29 @@
     document.querySelector("#nb-titlebar .nb-settings").setAttribute("aria-expanded", "true");
   }
 
+  var maxBtn = null;
+
   function buildTitlebar() {
     var bar = document.createElement("div");
     bar.id = "nb-titlebar";
     bar.innerHTML =
-      '<button class="nb-settings" data-act="settings" title="Nebula settings" aria-haspopup="menu" aria-expanded="false">' + ICON.gear + "</button>" +
+      '<button class="nb-settings" data-act="settings" title="Nebula settings" aria-label="Nebula settings" aria-haspopup="menu" aria-expanded="false">' + ICON.gear + "</button>" +
       '<div class="nb-brand"><span class="nb-dot"></span>Nebula</div><div class="nb-spacer"></div>' +
-      '<button class="nb-account" data-act="accounts" title="Accounts"><span class="nb-avatar">' + ICON.user + "</span></button>" +
-      '<button data-act="minimize" title="Minimize">' + ICON.min + "</button>" +
-      '<button data-act="maximize" title="Maximize">' + ICON.max + "</button>" +
-      '<button class="nb-close" data-act="close" title="Close">' + ICON.close + "</button>";
+      '<button class="nb-account" data-act="accounts" title="Accounts" aria-label="Accounts"><span class="nb-avatar">' + ICON.user + "</span></button>" +
+      '<span class="nb-sep"></span>' +
+      '<button class="nb-wc" data-act="minimize" title="Minimize" aria-label="Minimize">' + ICON.min + "</button>" +
+      '<button class="nb-wc" data-act="maximize" title="Maximize" aria-label="Maximize">' + ICON.max + "</button>" +
+      '<button class="nb-wc nb-close" data-act="close" title="Close" aria-label="Close">' + ICON.close + "</button>";
     document.body.appendChild(bar);
+
+    maxBtn = bar.querySelector('[data-act="maximize"]');
+    // Rust calls this whenever the window is resized, so the button shows
+    // "restore" while the window is maximized.
+    window.__nebulaMaximized = function (on) {
+      maxBtn.innerHTML = on ? ICON.restore : ICON.max;
+      maxBtn.title = on ? "Restore" : "Maximize";
+      maxBtn.setAttribute("aria-label", maxBtn.title);
+    };
 
     bar.addEventListener("mousedown", function (e) {
       if (e.button !== 0 || e.target.closest("button")) return;
@@ -709,6 +822,9 @@
     menu = buildMenu();
     accountsPanel = buildAccounts();
     buildTitlebar();
+    // Added last, so the pointer overlay sits above the title bar and the menus.
+    buildCursor();
+    applyCursor(currentCursor, false);
     wireDismiss();
     root.setAttribute("data-nb-theme", current.id);
     reapply(true);

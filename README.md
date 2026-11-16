@@ -37,10 +37,10 @@ run this in PowerShell from the folder with the download:
 Get-FileHash .\Nebula.exe -Algorithm SHA256
 ```
 
-The hash must match the one listed for that release. v0.4.0 `Nebula.exe`:
+The hash must match the one listed for that release. v0.5.0 `Nebula.exe`:
 
 ```
-7a212cedf67e86a7b950e6e134707a237caedd61f508034c7ead8619b0f17811
+3c8c1ca22f1ffd00705894b98268eb409be469ff7a9653a1032ab2e72192d9a9
 ```
 
 ## Behaviour
@@ -62,9 +62,11 @@ The hash must match the one listed for that release. v0.4.0 `Nebula.exe`:
   publishes for it, replaces the running copy and restarts Nebula. **No** keeps the
   current version. Debug builds never check.
 - Button hover/press transitions are disabled in the injected stylesheet.
-- The window has no native title bar. Nebula draws its own (`src/chrome.js`), with
-  minimize, maximize and close buttons. Double-clicking it toggles maximize.
-- A settings icon at the top-left of the title bar opens a small menu with two
+- The window has no native title bar. Nebula draws its own (`src/chrome.js`), 32px
+  tall to match Windows 11's caption buttons, with minimize, maximize and close
+  buttons. Close turns red on hover. While the window is maximized, the maximize
+  button shows a restore icon. Double-clicking the bar toggles maximize.
+- A settings icon at the top-left of the title bar opens a small menu with these
   sections:
   - **Theme:** eight built-in themes: Nebula, Midnight, Ember, Aurora, Rose, Forest,
     Solar and Graphite. A theme recolors the whole Discord client: backgrounds, text,
@@ -77,6 +79,10 @@ The hash must match the one listed for that release. v0.4.0 `Nebula.exe`:
     are darkened to a dark shade of the same hue), and the accent's lightness is kept
     within a range that reads on dark surfaces. Closing the menu without saving goes back to the saved
     theme.
+  - **Cursor:** System (Windows' own pointer, the default), or one of four custom
+    pointers: Cross, Dot, Ring or Corners. The custom pointers are white with
+    `mix-blend-mode: difference`, so each one shows the inverse of the colour beneath
+    it. The choice is saved to `%APPDATA%\Nebula\cursor.txt`.
   - **Power:** "Slow to 10 FPS when tabbed out", on by default. While the Nebula
     window is hidden or not focused, animation frames run 10 times a second instead of
     at the display rate, which cuts background CPU and GPU use. Turn it off to keep
@@ -119,7 +125,7 @@ The build does not download anything.
 - `src/vencord.rs` — Vencord download, digest verification, cache, and page script.
 - `src/accounts.rs` — saved accounts, DPAPI encryption, and account requests from the page.
 - `src/themes.rs` — saved theme and custom colors, validation, and the window background color.
-- `src/chrome.js` — title bar, settings menu (themes, custom theme and low-power mode), account dropdown, theme recoloring and the 10 FPS background throttle (injected).
+- `src/chrome.js` — title bar, settings menu (themes, custom theme, cursor and low-power mode), account dropdown, custom cursor overlay, theme recoloring and the 10 FPS background throttle (injected).
 - `build.rs` — embeds the Windows icon.
 - `vendor/` — third-party Vencord files (fallback copy).
 - `assets/icon.ico`, `Logo.png` — application icon and logo.
